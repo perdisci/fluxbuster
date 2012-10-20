@@ -93,6 +93,8 @@ edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties
 		ex. 0.75
 		
 	CANDIDATE_FLUX_DIR : The directory containing the SIE source files.
+    This directory must contains the logfiles produced by 
+    extract_candidate_flux_domains.py
 	
 edu/uga/cs/fluxbuster/db/DBInterfaceFactory.properties
 
@@ -131,6 +133,9 @@ NOTE: you should configure the versions of the .properties files located in the
 bin directory after building the program.
 
 [Usage]
+
+First, make sure extract_candidate_flux_domains.py is running, and producing 
+the files containing the candidate flux domains.
 
 You can execute Fluxbuster via the fluxbuster.sh bash script.
 
