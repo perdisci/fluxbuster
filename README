@@ -9,7 +9,7 @@ pre-constructed decision tree.
 [Compilation]
 
 Build Requirements:
-1. Java JDK  1.6 or greater
+1. Java JDK 1.6 or greater
 2. ant
 
 To compile Fluxbuster from the directory containing the build.xml file execute 
@@ -57,6 +57,36 @@ access the database from the host running Fluxbuster.
 resources directory on the Fluxbuster database.  This will create the tables, 
 indexes, etc. required by Fluxbuster.
 
+
+Fluxbuster includes one vital component as a python script.  This script 
+found in the resources directory extract_candidate_flux_domains.py parses
+SIE information to produce the input data files for fluxbuster.  This script 
+requires the following configuration to execute:
+
+1. Install Python 2.X (2.5 or greater)
+2. Install make sure the following modules are installed.
+	os
+	sys
+	gc
+	socket
+	time
+	math
+	nmsg
+	wdns
+	time
+	gzip
+	threading
+	Queue
+	datetime
+	sets
+
+NOTE: nmsg and wdns can be located at http://rsfcode.isc.org/
+
+Once python and the required modules have been installed the 
+extract_candidate_flux_domains.py should be run as a daemon process.  You 
+should set the LOG_DIR variable in the script to the location where you
+wish to place the parsed data files. 
+
 [Configuration]
 
 Fluxbuster is configured through various .properties files.  Some of the 
@@ -93,8 +123,8 @@ edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties
 		ex. 0.75
 		
 	CANDIDATE_FLUX_DIR : The directory containing the SIE source files.
-    This directory must contains the logfiles produced by 
-    extract_candidate_flux_domains.py
+    		This directory must contains the logfiles produced by 
+    		extract_candidate_flux_domains.py
 	
 edu/uga/cs/fluxbuster/db/DBInterfaceFactory.properties
 
