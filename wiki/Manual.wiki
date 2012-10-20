@@ -1,0 +1,113 @@
+#summary Fluxbuster manual.
+#labels Phase-Deploy,Featured
+
+= Introduction =
+
+Fluxbuster is designed to cluster and classify candidate fast flux networks from
+SIE DNS traffic data. Data is read from timestamped compressed data files
+and stored in a relational database. The clustering process uses an
+agglomerative hierarchical clustering algorithm. Classification involves a
+pre-constructed decision tree.
+
+
+= Compilation =
+
+Build Requirements:
+  # [http://www.oracle.com/technetwork/java/javase/downloads/index.html Java] JDK 1.6 or greater
+  # [http://ant.apache.org/ ant]
+
+To compile Fluxbuster from the directory containing the build.xml file execute
+the following command:
+
+{{{
+ant build
+}}}
+
+This will build all of the class files and place them into the bin directory.
+
+To clean up the build from the same directory execute the following command:
+
+{{{
+ant clean
+}}}
+
+NOTE: all of the libraries necessary to build and execute Fluxbuster are
+included in the lib directory.
+
+= Documentation =
+
+The javadocs for Fluxbuster are located in the doc directory.
+
+They can be generated from the source code by executing:
+
+{{{
+ant doc
+}}}
+
+To clean up the javadocs execute:
+
+{{{
+ant clean-doc
+}}}
+
+
+= Installation =
+
+As Fluxbuster only currently supports PostgreSQL, PostgreSQL version 8.4 or
+greater should be installed to your database host. After this is accomplished
+complete the following steps to install the Fluxbuster database.
+
+  # Create a database user to own the Fluxbuster database. If Fluxbuster will be installed on the same host as the database the Fluxbuster user would only need local access to the database, otherwise the user must be given permission to access the database from the host running Fluxbuster.
+  # Create a database to house the Fluxbuster db schema.
+  # Grant your database user ownership of the newly created database.
+  # As the Fluxbuster user execute the fluxbuster_schema.sql file found in the resources directory on the Fluxbuster database. This will create the tables, indexes, etc. required by Fluxbuster.
+
+
+Fluxbuster includes one vital component as a python script. This script
+found in the resources directory extract_candidate_flux_domains.py parses
+SIE information to produce the input data files for Fluxbuster. This script
+requires the following configuration to execute.
+
+  # Install Python 2.X (2.5 or greater)
+  # Install make sure the following modules are installed.
+    * os
+    * sys
+    * gc
+    * socket
+    * time
+    * math
+    * nmsg
+    * wdns
+    * time
+    * gzip
+    * threading
+    * Queue
+    * datetime
+    * sets
+
+NOTE: nmsg and wdns can be located at http://rsfcode.isc.org/
+
+Once python and the required modules have been installed the
+extract_candidate_flux_domains.py should be run as a daemon process. You
+should set the LOG_DIR variable in the script to the location where you
+wish to place the parsed data files.
+
+= Configuration =
+
+Fluxbuster is configured through various .properties files. Some of the configuration properties in these files should not be manually configured.  What follows is the list of manually configurable properties for Fluxbuster and the files in which they reside:
+
+==== edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties ====
+
+  * *SELECTED_CFD_FILE* : The path to a list of domains that should be clustered regardless of their candidate score. If this is properties is not specified it is ignored.
+  * *GOOD_CANDIDATE_THRESHOLD* : The candidate score threshold. Those candidate domains with a candidate score greater than the threshold are considered for clustering. This value should be between 0.0 and 1.0. ex. 0.5
+  * *MAX_CANDIDATE_DOMAINS* : The total number of candidate domains to cluster. ex. 1000
+  * *DIST_MATRIX_MULTITHREADED* : Should the calculation of the distance matrix be multithreaded. Valid values are 'true' or 'false'.
+  * *DIST_MATRIX_NUMTHREADS* : The number of threads to use in multithreaded distance matrix calculation. This value must be a positive integer. If DIST_MATRIX_MULTITHREADED is set to 'false' this value is ignored.
+  * *LINKAGE_TYPE* : The linkage type to used during hierarchical clustering. Valid values are 'Single' or 'Complete'
+  * *MAX_CUT_HEIGHT* : The maximum cut height used during hierarchical clustering.  The value should be between 0.0 and 1.0. ex. 0.75
+  * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py 
+
+Add your content here.  Format your content with:
+  * Text in *bold* or _italic_
+  * Headings, paragraphs, and lists
+  * Automatic links to other wiki pages
