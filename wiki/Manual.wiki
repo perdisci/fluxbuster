@@ -31,7 +31,7 @@ To clean up the build from the same directory execute the following command:
 ant clean
 }}}
 
-NOTE: all of the libraries necessary to build and execute Fluxbuster are
+* NOTE *: all of the libraries necessary to build and execute Fluxbuster are
 included in the lib directory.
 
 = Documentation =
@@ -105,9 +105,96 @@ Fluxbuster is configured through various .properties files. Some of the configur
   * *DIST_MATRIX_NUMTHREADS* : The number of threads to use in multithreaded distance matrix calculation. This value must be a positive integer. If DIST_MATRIX_MULTITHREADED is set to 'false' this value is ignored.
   * *LINKAGE_TYPE* : The linkage type to used during hierarchical clustering. Valid values are 'Single' or 'Complete'
   * *MAX_CUT_HEIGHT* : The maximum cut height used during hierarchical clustering.  The value should be between 0.0 and 1.0. ex. 0.75
-  * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py 
+  * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py
 
-Add your content here.  Format your content with:
-  * Text in *bold* or _italic_
-  * Headings, paragraphs, and lists
-  * Automatic links to other wiki pages
+==== edu/uga/cs/fluxbuster/db/DBInterfaceFactory.properties ====
+
+  * *DBINTERFACE_CONNECTINFO* : The jdbc connection string to the fluxbuster database.  ex. jdbc:postgresql://host.example.com:54321/fluxbuster?user=sample&password=secret
+
+==== edu/uga/cs/fluxbuster/classification/Classifier.properties ====
+
+  * *FEATURES_PATH* : A path to store the constructed features file. This file is generated dynamically each time the classifier is called.  ex. /tmp/unlabeled_tmp.arff
+
+==== edu/uga/cs/fluxbuster/analytics/ClusterSimilarityCalculator.properties ====
+
+  * *SIMILARITY_NUMTHREADS* : The number of thread to use when calculating domain
+and IP based similarities. This value should be a positive integer.
+
+==== commons-logging.properties ====
+
+  * *org.apache.commons.logging.Log* : Sets the logging implementation class. By default this is set to 'org.apache.commons.logging.impl.SimpleLog' which can be configured in the simplelog.properties file.
+
+==== simplelog.properties ====
+
+  * *org.apache.commons.logging.simplelog.defaultlog* : the default minimum logging level.
+  * *org.apache.commons.logging.simplelog.showdatetime* : display a timestamp for each log entry.
+  * *org.apache.commons.logging.simplelog.showlogname* : Set to true if you want the Log instance name to be included in output messages.
+
+* NOTE *: you should configure the versions of the .properties files located in the
+bin directory after building the program.
+
+= Usage =
+
+First, make sure extract_candidate_flux_domains.py is running, and producing the files containing the candidate flux domains.
+
+You can execute Fluxbuster via the fluxbuster.sh bash script.
+
+Usage: fluxbuster.sh `<start_date>` `<end_date>`
+
+ start_date: the start of the data period, should be specified in yyyyMMdd format. ex. 20120101
+ 
+ end_date: the end of the data period, should be specified in yyyyMMdd format. ex. 20120102
+
+To access the results of Fluxbuster you can use the following SQL examples to
+query the Fluxbuster database. 
+
+1. Get all the domains and to which cluster they belong for a the run on
+2010-11-13.
+
+{{{
+select
+  clusters.cluster_id,
+  domains.domain_name,
+  domains.second_level_domain_name
+from
+  clusters
+    join
+  domains
+    on
+  clusters.log_date = domains.log_date
+  and clusters.domain_id = domains.domain_id
+where
+  clusters.log_date = '2010-11-13'
+}}}
+
+2. Get all of the cluster features for each cluster for the run on 2010-11-13.
+
+{{{
+select
+  cluster_feature_vectors.*
+from
+  clusters
+    join
+  cluster_feature_vectors
+    on
+  clusters.log_date = cluster_feature_vectors.log_date
+  and clusters.cluster_id = cluster_feature_vectors.cluster_id
+where
+  clusters.log_date = '2010-11-13'
+}}}
+
+3. Get all of the classified clusters for the run on 2010-11-15.
+
+{{{
+select
+  distinct(cluster_classes.*)
+from
+  clusters
+    join
+  cluster_classes
+    on
+  clusters.log_date = cluster_classes.log_date
+  and clusters.cluster_id = cluster_classes.cluster_id
+where
+  clusters.log_date = '2010-11-15'
+}}}
