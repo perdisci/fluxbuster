@@ -1,7 +1,7 @@
 #summary Fluxbuster manual.
 #labels Phase-Deploy,Featured
 
-= Introduction =
+== Introduction ==
 
 Fluxbuster is designed to cluster and classify candidate fast flux networks from
 SIE DNS traffic data. Data is read from timestamped compressed data files
@@ -10,7 +10,7 @@ agglomerative hierarchical clustering algorithm. Classification involves a
 pre-constructed decision tree.
 
 
-= Compilation =
+== Compilation ==
 
 Build Requirements:
   # [http://www.oracle.com/technetwork/java/javase/downloads/index.html Java] JDK 1.6 or greater
@@ -34,7 +34,7 @@ ant clean
 * NOTE *: all of the libraries necessary to build and execute Fluxbuster are
 included in the lib directory.
 
-= Documentation =
+== Documentation ==
 
 The javadocs for Fluxbuster are located in the doc directory.
 
@@ -51,7 +51,7 @@ ant clean-doc
 }}}
 
 
-= Installation =
+== Installation ==
 
 As Fluxbuster only currently supports PostgreSQL, PostgreSQL version 8.4 or
 greater should be installed to your database host. After this is accomplished
@@ -92,7 +92,7 @@ extract_candidate_flux_domains.py should be run as a daemon process. You
 should set the LOG_DIR variable in the script to the location where you
 wish to place the parsed data files.
 
-= Configuration =
+== Configuration ==
 
 Fluxbuster is configured through various .properties files. Some of the configuration properties in these files should not be manually configured.  What follows is the list of manually configurable properties for Fluxbuster and the files in which they reside:
 
@@ -133,7 +133,7 @@ and IP based similarities. This value should be a positive integer.
 * NOTE *: you should configure the versions of the .properties files located in the
 bin directory after building the program.
 
-= Usage =
+== Usage ==
 
 First, make sure extract_candidate_flux_domains.py is running, and producing the files containing the candidate flux domains.
 
