@@ -54,7 +54,7 @@ public final class DBInterfaceFactory {
 	 */
 	private static void loadProperties() throws IOException{
 		if(properties == null){
-			properties = PropertiesUtils.loadProperties(DBInterfaceFactory.class);
+			properties = PropertiesUtils.loadAppWideProperties();
 		}
 	}
 	

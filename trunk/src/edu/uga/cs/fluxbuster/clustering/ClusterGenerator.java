@@ -62,7 +62,7 @@ public class ClusterGenerator {
 
 	private ArrayList<String> domainWhitelist = null;
 	
-	private Properties properties = null;
+	private Properties localprops = null, appprops = null;
 
 	private static final String WHITELISTKEY = "WHITELIST_FILE";
 	
@@ -99,11 +99,12 @@ public class ClusterGenerator {
 	/**
 	 * Instantiates a new cluster generator.
 	 *
-	 * @throws IOException if the ClusterGenerator.properties file can
+	 * @throws IOException if the ClusterGenerator.localprops file can
 	 * 		not be read
 	 */
 	public ClusterGenerator() throws IOException {
-		properties = PropertiesUtils.loadProperties(this.getClass());
+		localprops = PropertiesUtils.loadProperties(this.getClass());
+		appprops = PropertiesUtils.loadAppWideProperties();
 		try {
 			loadWhitelist();
 		} catch (IOException e) {
@@ -120,7 +121,7 @@ public class ClusterGenerator {
 	 */
 	private void loadWhitelist() throws IOException {
 		domainWhitelist = new ArrayList<String>();
-		String whitelistfile = properties.getProperty(WHITELISTKEY);
+		String whitelistfile = localprops.getProperty(WHITELISTKEY);
 
 		BufferedReader br = new BufferedReader(new FileReader(whitelistfile));
 		String line;
@@ -138,10 +139,10 @@ public class ClusterGenerator {
 	 * 		order
 	 */
 	private Vector<Float> computeDistanceMatrix(List<CandidateFluxDomain> cfds){
-		boolean multithread = Boolean.parseBoolean(properties
+		boolean multithread = Boolean.parseBoolean(appprops
 				.getProperty(DISTMATRIXKEY));
 		if (multithread) {
-			int numthreads = Integer.parseInt(properties
+			int numthreads = Integer.parseInt(appprops
 					.getProperty(DISTNUMTHREADSKEY));
 			if (numthreads < 1) {
 				numthreads = 1;
@@ -166,7 +167,7 @@ public class ClusterGenerator {
 			List<CandidateFluxDomain> cfds, int maxnumthreads){
 		Vector<Float> retval = new Vector<Float>();
 		ThreadFactory tf = Executors.defaultThreadFactory();
-		double gamma = Double.parseDouble(properties.getProperty(GAMMAKEY));
+		double gamma = Double.parseDouble(localprops.getProperty(GAMMAKEY));
 		ArrayList<Thread> threads = new ArrayList<Thread>();
 		ArrayList<HashSet<Integer>> threadrows = new ArrayList<HashSet<Integer>>();
 
@@ -266,11 +267,11 @@ public class ClusterGenerator {
 	 * @return the candidate score
 	 */
 	public double calcCandidateScore(CandidateFluxDomain cfd) {
-		int minTotalRrsetSize = Integer.parseInt(properties
+		int minTotalRrsetSize = Integer.parseInt(localprops
 				.getProperty(MINRRSETSIZEKEY));
-		double minTotalDiversity = Double.parseDouble(properties
+		double minTotalDiversity = Double.parseDouble(localprops
 				.getProperty(MINDIVERSITYKEY));
-		double veryShortTTL = Double.parseDouble(properties
+		double veryShortTTL = Double.parseDouble(localprops
 				.getProperty(SHORTTTLKEY));
 
 		double ipDiv = IPDiversityCalculator.ipDiversity(IPDiversityCalculator
@@ -294,7 +295,7 @@ public class ClusterGenerator {
 	 * 		be clustered regardless of the candidate score.  If null the list
 	 * 		is ignored.
 	 * @return the list of candidate flux domains
-	 * @throws Exception if there is an error reading the ClusterGenerator.properties
+	 * @throws Exception if there is an error reading the ClusterGenerator.localprops
 	 * 		or data files
 	 */
 	public List<CandidateFluxDomain> loadCandidateFluxDomains(long startTime,
@@ -302,10 +303,10 @@ public class ClusterGenerator {
 		ArrayList<CandidateFluxDomain> retval = new ArrayList<CandidateFluxDomain>();
 		HashMap<String, CandidateFluxDomain> seenDomains = new HashMap<String, CandidateFluxDomain>();
 		List<String> recentFluxDomains = this.loadRecentFluxDomains();
-		String dirPath = properties.getProperty(FLUXDIRKEY);
-		double goodCandidateThreshold = Double.parseDouble(properties
+		String dirPath = appprops.getProperty(FLUXDIRKEY);
+		double goodCandidateThreshold = Double.parseDouble(appprops
 				.getProperty(CANDIDATETHRESHKEY));
-		int maxCandidateDomains = Integer.parseInt(properties
+		int maxCandidateDomains = Integer.parseInt(appprops
 				.getProperty(MAXDOMAINSKEY));
 
 		for (String filename : this.getFileNames(dirPath, startTime, endTime)) {
@@ -466,8 +467,8 @@ public class ClusterGenerator {
 			long endTime) {
 		ArrayList<String> retval = new ArrayList<String>();
 		ArrayList<File> selectedFiles = new ArrayList<File>();
-		String fileregex = properties.getProperty(FLUXFILEREGEXKEY);
-		String parseregx = properties.getProperty(FLUXFILEPARSEREGEXKEY);
+		String fileregex = localprops.getProperty(FLUXFILEREGEXKEY);
+		String parseregx = localprops.getProperty(FLUXFILEPARSEREGEXKEY);
 		Pattern parsepattern = Pattern.compile(parseregx);
 		File fluxdir = new File(dirPath);
 		if (fluxdir.isDirectory()) {
@@ -509,20 +510,20 @@ public class ClusterGenerator {
 	/**
 	 * Runs the clustering process on the data files for the time period
 	 * between the start and end times.  The linkage type and max cut height
-	 * are read from the ClusterGenerator.properties file
+	 * are read from the ClusterGenerator.localprops file
 	 *
 	 * @param startTime the start time
 	 * @param endTime the end time
 	 * @param selcfds if true then the file with a list of domains to cluster regardless
 	 * 		of candidate score is used for clustering
 	 * @return the list of clusters
-	 * @throws Exception if there is an error reading the ClusterGenerator.properties
+	 * @throws Exception if there is an error reading the ClusterGenerator.localprops
 	 * 		or data files
 	 */
 	public List<DomainCluster> generateClusters(long startTime, long endTime, boolean selcfds)
 			throws Exception {
 		if(selcfds){
-			String selcfdfilepath = properties.getProperty(SELECTEDCFDFILEKEY);
+			String selcfdfilepath = appprops.getProperty(SELECTEDCFDFILEKEY);
 			if(new File(selcfdfilepath).exists()){
 				return this.generateClusters(startTime, endTime, selcfdfilepath);
 			}
@@ -534,21 +535,21 @@ public class ClusterGenerator {
 	/**
 	 * Runs the clustering process on the data files for the time period
 	 * between the start and end times.  The linkage type and max cut height
-	 * are read from the ClusterGenerator.properties file
+	 * are read from the ClusterGenerator.localprops file
 	 *
 	 * @param startTime the start time
 	 * @param endTime the end time
 	 * @param domainfile a list of domains to cluster regardless of candidate
 	 * 		score
 	 * @return the list of clusters
-	 * @throws Exception if there is an error reading the ClusterGenerator.properties
+	 * @throws Exception if there is an error reading the ClusterGenerator.localprops
 	 * 		or data files
 	 */
 	public List<DomainCluster> generateClusters(long startTime, long endTime, 
 			String domainfile) throws Exception{
-		double maxCutHeight = Double.parseDouble(properties
+		double maxCutHeight = Double.parseDouble(appprops
 				.getProperty(MAXCUTHEIGHTKEY));
-		String linkageTypeStr = properties.getProperty(LINKAGETYPEKEY);
+		String linkageTypeStr = appprops.getProperty(LINKAGETYPEKEY);
 		LinkageType linkage = LinkageType.COMPLETE_LINKAGE;
 		if (linkageTypeStr.toLowerCase().trim().equals("single")) {
 			linkage = LinkageType.SINGLE_LINKAGE;
@@ -567,7 +568,7 @@ public class ClusterGenerator {
 	 * @param linkage the linkage type
 	 * @param maxCutHeight the max cut height
 	 * @return the list of clusters
-	 * @throws Exception if there is an error reading the ClusterGenerator.properties
+	 * @throws Exception if there is an error reading the ClusterGenerator.localprops
 	 * 		or data files
 	 */
 	private List<DomainCluster> generateClusters(long startTime, long endTime, String domainfile,
