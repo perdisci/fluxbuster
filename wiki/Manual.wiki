@@ -107,15 +107,14 @@ Fluxbuster is configured through a single .properties file called fluxbuster.pro
   * *MAX_CUT_HEIGHT* : The maximum cut height used during hierarchical clustering.  The value should be between 0.0 and 1.0. ex. 0.75
   * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py
   * *DBINTERFACE_CONNECTINFO* : The jdbc connection string to the fluxbuster database.  ex. jdbc:postgresql://host.example.com:54321/fluxbuster?user=sample&password=secret
-  * *SIMILARITY_NUMTHREADS* : The number of thread to use when calculating domain
-and IP based similarities. This value should be a positive integer.
+  * *SIMILARITY_NUMTHREADS* : The number of thread to use when calculating domain and IP based similarities. This value should be a positive integer.
   * *FEATURES_PATH* : A path to store the constructed features file. This file is generated dynamically each time the classifier is called.  ex. /tmp/unlabeled_tmp.arff
 
-==== `commons-logging.properties` ====
+==== `edu/uga/cs/fluxbuster/commons-logging.properties` ====
 
   * *org.apache.commons.logging.Log* : Sets the logging implementation class. By default this is set to 'org.apache.commons.logging.impl.SimpleLog' which can be configured in the simplelog.properties file.
 
-==== `simplelog.properties` ====
+==== `edu/uga/cs/fluxbuster/simplelog.properties` ====
 
   * *org.apache.commons.logging.simplelog.defaultlog* : the default minimum logging level.
   * *org.apache.commons.logging.simplelog.showdatetime* : display a timestamp for each log entry.
