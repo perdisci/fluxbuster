@@ -29,7 +29,7 @@ import java.util.Properties;
 public class PropertiesUtils {
 
 	/**
-	 * Load properties.
+	 * Load local class properties.
 	 *
 	 * @param clazz the class of the corresponding properties file
 	 * @return the loaded properties
@@ -40,5 +40,18 @@ public class PropertiesUtils {
 		String propfilename = clazz.getSimpleName() + ".properties";
 		retval.load(clazz.getResourceAsStream(propfilename));
 		return retval;
+	}
+	
+	/**
+	 * Load application wide properties.
+	 *
+	 * @return the loaded properties from the fluxbuster.properties file.
+	 * @throws IOException Signals that an I/O exception has occurred.
+	 */
+	public static Properties loadAppWideProperties() throws IOException {
+	    Properties configFile = new Properties();
+	    configFile.load(PropertiesUtils.class.getClassLoader()
+	    		.getResourceAsStream("fluxbuster.properties"));
+	    return configFile;
 	}
 }

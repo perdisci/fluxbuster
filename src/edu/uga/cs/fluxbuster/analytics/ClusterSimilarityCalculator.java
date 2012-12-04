@@ -49,10 +49,6 @@ public class ClusterSimilarityCalculator {
 	
 	private static String SIMILARITY_NUMTHREADSKEY = "SIMILARITY_NUMTHREADS";
 	
-	private static String DEBUGKEY = "DEBUG";
-	
-	private boolean debug = false;
-	
 	private static Log log = LogFactory.getLog(ClusterSimilarityCalculator.class);
 	
 	/**
@@ -68,8 +64,7 @@ public class ClusterSimilarityCalculator {
 	 * 		can not be loaded
 	 */
 	public ClusterSimilarityCalculator() throws IOException{
-		properties = PropertiesUtils.loadProperties(this.getClass());
-		debug = Boolean.parseBoolean(properties.getProperty(DEBUGKEY));
+		properties = PropertiesUtils.loadAppWideProperties();
 	}
 	
 	/**
@@ -193,9 +188,9 @@ public class ClusterSimilarityCalculator {
 		
 		List<Integer> aclusters = this.getClusterIDs(adate);
 		List<Integer> bclusters = this.getClusterIDs(bdate);
-		if(debug){
-			System.out.println("aclusters size:" + aclusters.size());
-			System.out.println("bclusters size:" + bclusters.size());
+		if(log.isDebugEnabled()){
+			log.debug("aclusters size:" + aclusters.size());
+			log.debug("bclusters size:" + bclusters.size());
 		}
 		
 		AtomicReferenceArray<AtomicReferenceArray<Double>> sims = 
@@ -251,14 +246,14 @@ public class ClusterSimilarityCalculator {
 			AtomicReferenceArray<Double> row = sims.get(i);
 			for(int j = 1; j < row.length(); j++){
 				Double value = row.get(j);
-				if(debug){
-					System.out.println("Sim values: " + adate + " " + bdate + 
+				if(log.isDebugEnabled()){
+					log.debug("Sim values: " + adate + " " + bdate + 
 							" " + i + " " + j + " " + value);
 				}
 				if(value != null) {
 					ClusterSimilarity temp = new ClusterSimilarity(adate, bdate, i, j, row.get(j));
-					if(debug){
-						System.out.println("Adding: " + temp);
+					if(log.isDebugEnabled()){
+						log.debug("Adding: " + temp);
 					}
 					result.add(temp);
 				}
