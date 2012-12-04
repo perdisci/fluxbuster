@@ -71,7 +71,7 @@ public class Classifier {
 	
 	private DBInterface dbi;
 	
-	private Properties properties = null;
+	private Properties localprops = null, appprops = null;
 	
 	private static Log log = LogFactory.getLog(Classifier.class);
 	
@@ -95,12 +95,15 @@ public class Classifier {
 	 * 		Classifer.properties file
 	 */
 	public Classifier(DBInterface dbi) throws IOException{
-		if(properties == null){
-			properties = PropertiesUtils.loadProperties(this.getClass());
+		if(localprops == null){
+			localprops = PropertiesUtils.loadProperties(this.getClass());
 		}
-		this.classpath = properties.getProperty(WEKA_CLASSPATHKEY);
-		this.featuresfile = properties.getProperty(FEATURES_PATHKEY);
-		this.modelfile = properties.getProperty(MODEL_PATHKEY);
+		if(appprops == null){
+			appprops = PropertiesUtils.loadAppWideProperties();
+		}
+		this.classpath = localprops.getProperty(WEKA_CLASSPATHKEY);
+		this.featuresfile = appprops.getProperty(FEATURES_PATHKEY);
+		this.modelfile = localprops.getProperty(MODEL_PATHKEY);
 		this.dbi = dbi;
 	}
 	
