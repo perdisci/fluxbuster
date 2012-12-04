@@ -94,9 +94,9 @@ wish to place the parsed data files.
 
 == Configuration ==
 
-Fluxbuster is configured through various .properties files. Some of the configuration properties in these files should not be manually configured.  What follows is the list of manually configurable properties for Fluxbuster and the files in which they reside:
+Fluxbuster is configured through a single .properties file called fluxbuster.properties.
 
-==== `edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties` ====
+==== `edu/uga/cs/fluxbuster/fluxbuster.properties` ====
 
   * *SELECTED_CFD_FILE* : The path to a list of domains that should be clustered regardless of their candidate score. If this is properties is not specified it is ignored.
   * *GOOD_CANDIDATE_THRESHOLD* : The candidate score threshold. Those candidate domains with a candidate score greater than the threshold are considered for clustering. This value should be between 0.0 and 1.0. ex. 0.5
@@ -106,19 +106,10 @@ Fluxbuster is configured through various .properties files. Some of the configur
   * *LINKAGE_TYPE* : The linkage type to used during hierarchical clustering. Valid values are 'Single' or 'Complete'
   * *MAX_CUT_HEIGHT* : The maximum cut height used during hierarchical clustering.  The value should be between 0.0 and 1.0. ex. 0.75
   * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py
-
-==== `edu/uga/cs/fluxbuster/db/DBInterfaceFactory.properties` ====
-
   * *DBINTERFACE_CONNECTINFO* : The jdbc connection string to the fluxbuster database.  ex. jdbc:postgresql://host.example.com:54321/fluxbuster?user=sample&password=secret
-
-==== `edu/uga/cs/fluxbuster/classification/Classifier.properties` ====
-
-  * *FEATURES_PATH* : A path to store the constructed features file. This file is generated dynamically each time the classifier is called.  ex. /tmp/unlabeled_tmp.arff
-
-==== `edu/uga/cs/fluxbuster/analytics/ClusterSimilarityCalculator.properties` ====
-
   * *SIMILARITY_NUMTHREADS* : The number of thread to use when calculating domain
 and IP based similarities. This value should be a positive integer.
+  * *FEATURES_PATH* : A path to store the constructed features file. This file is generated dynamically each time the classifier is called.  ex. /tmp/unlabeled_tmp.arff
 
 ==== `commons-logging.properties` ====
 
