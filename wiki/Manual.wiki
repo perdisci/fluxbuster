@@ -94,7 +94,7 @@ wish to place the parsed data files.
 
 == Configuration ==
 
-Fluxbuster is configured through a single .properties file called fluxbuster.properties.
+Fluxbuster is configured through several .properties files.  What follows are the locations of each .properties file and a description of their attributes.
 
 ==== `edu/uga/cs/fluxbuster/fluxbuster.properties` ====
 
@@ -112,7 +112,7 @@ Fluxbuster is configured through a single .properties file called fluxbuster.pro
 
 ==== `edu/uga/cs/fluxbuster/commons-logging.properties` ====
 
-  * *org.apache.commons.logging.Log* : Sets the logging implementation class. By default this is set to 'org.apache.commons.logging.impl.SimpleLog' which can be configured in the simplelog.properties file.
+  * *org.apache.commons.logging.Log* : Sets the logging implementation class. By default this is set to `org.apache.commons.logging.impl.SimpleLog` which can be configured in the simplelog.properties file.
 
 ==== `edu/uga/cs/fluxbuster/simplelog.properties` ====
 
