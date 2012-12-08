@@ -107,8 +107,17 @@ Fluxbuster is configured through several .properties files.  What follows are th
   * *MAX_CUT_HEIGHT* : The maximum cut height used during hierarchical clustering.  The value should be between 0.0 and 1.0. ex. 0.75
   * *CANDIDATE_FLUX_DIR* : The directory containing the SIE source files.  This directory must contains the logfiles produced by extract_candidate_flux_domains.py
   * *DBINTERFACE_CONNECTINFO* : The jdbc connection string to the fluxbuster database.  ex. jdbc:postgresql://host.example.com:54321/fluxbuster?user=sample&password=secret
-  * *SIMILARITY_NUMTHREADS* : The number of thread to use when calculating domain and IP based similarities. This value should be a positive integer.
+  * *DBINTERFACE_DRIVER* : The full class name of the JDBC driver class to use.  ex. org.postgresql.Driver
+  * *DBINTERFACE_CLASS* : The full class name of the DBInterface implementation to use.  ex. edu.uga.cs.fluxbuster.db.PostgresDBInterface
   * *FEATURES_PATH* : A path to store the constructed features file. This file is generated dynamically each time the classifier is called.  ex. /tmp/unlabeled_tmp.arff
+
+The following are options related BoneCP.  In most cases the default options will suffice.  For further information about each option see:  http://jolbox.com/bonecp/downloads/site/apidocs/com/jolbox/bonecp/BoneCPConfig.html
+
+  * *DBINTERFACE_PARTITIONS* : BoneCPConfig.setPartitionCount
+  * *DBINTERFACE_MIN_CON_PER_PART* : BoneCPConfig.setMinConnectionsPerPartition
+  * *DBINTERFACE_MAX_CON_PER_PART* : BoneCPConfig.setMaxConnectionsPerPartition
+  * *DBINTERFACE_RETRY_ATTEMPTS* : BoneCPConfig.setAcquireRetryAttempts
+  * *DBINTERFACE_RETRY_DELAY* : BoneCPConfig.setAcquireRetryDelayInMs
 
 ==== `edu/uga/cs/fluxbuster/commons-logging.properties` ====
 
@@ -129,14 +138,22 @@ First, make sure extract_candidate_flux_domains.py is running, and producing the
 
 You can execute Fluxbuster via the fluxbuster.sh bash script.
 
-Usage: fluxbuster.sh `<start_date>` `<end_date>`
+<pre>usage: fluxbuster.sh
 
- start_date: the start of the data period, should be specified in yyyyMMdd format. ex. 20120101
- 
- end_date: the end of the data period, should be specified in yyyyMMdd format. ex. 20120102
+ If none of the options g, f, s, c are specified then the program will execute as
+if all of them have been specified.  Otherwise, the program will only execute
+the options specified.
 
-To access the results of Fluxbuster you can use the following SQL examples to
-query the Fluxbuster database. 
+ -?,--help                Print help message.
+-c,--classifiy-clusters  Classifiy clusters. (Optional)
+-d,--start-date <arg>    The start date of the input data.  Should be in
+                         yyyyMMdd format.
+-e,--end-date <arg>      The end date of the input data.  Should be in yyyyMMdd
+                         format.
+-f,--calc-features       Calculate cluster features. (Optional)
+-g,--generate-clusters   Generate clusters only. (Optional)
+-s,--calc-similarity     Calculate cluster similarities. (Optional)
+</pre>
 
 1. Get all the domains and to which cluster they belong for a the run on
 2010-11-13.
