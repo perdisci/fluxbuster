@@ -647,6 +647,7 @@ public class ClusterGenerator {
 					+ Calendar.getInstance().getTime());
 			log.info("Storing " + clusters.size() + " Clusters.");
 		}
+		dbiface.initClusterTables(log_date);
 		dbiface.storeBasicDnsFeatures(clusters, "SIE", log_date);
 		if(log.isInfoEnabled()){
 			log.info("Clusters stored.");

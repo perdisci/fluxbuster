@@ -24,6 +24,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -61,13 +62,11 @@ public class Classifier {
 			"@ATTRIBUTE class {Flux, NOT_Flux}\n\n" +
 			"@DATA\n";
 	
-	private static final String WEKA_CLASSPATHKEY = "WEKA_CLASSPATH";
-	
 	private static final String FEATURES_PATHKEY = "FEATURES_PATH";
 	
 	private static final String MODEL_PATHKEY = "MODEL_PATH";
 	
-	private String classpath, featuresfile, modelfile;
+	private String featuresfile, modelfile;
 	
 	private DBInterface dbi;
 	
@@ -101,9 +100,9 @@ public class Classifier {
 		if(appprops == null){
 			appprops = PropertiesUtils.loadAppWideProperties();
 		}
-		this.classpath = localprops.getProperty(WEKA_CLASSPATHKEY);
 		this.featuresfile = appprops.getProperty(FEATURES_PATHKEY);
-		this.modelfile = localprops.getProperty(MODEL_PATHKEY);
+		this.modelfile = new File(localprops.getProperty(MODEL_PATHKEY))
+			.getCanonicalPath();
 		this.dbi = dbi;
 	}
 	
@@ -114,8 +113,8 @@ public class Classifier {
 	 * @param featuresfile the path to store the features file
 	 * @param modelfile the path to the classification model file
 	 */
-	public Classifier(String classpath, String featuresfile, String modelfile){
-		this(classpath, featuresfile, modelfile, DBInterfaceFactory.loadDBInterface());
+	public Classifier(String featuresfile, String modelfile){
+		this(featuresfile, modelfile, DBInterfaceFactory.loadDBInterface());
 	}
 	
 	/**
@@ -124,11 +123,10 @@ public class Classifier {
 	 *
 	 * @param classpath the class path for running weka
 	 * @param featuresfile the path to store the features file
-	 * @param modelfile the path to the classification model file
+	 * @param modelfile the absolute path to the classification model file
 	 * @param dbi the database interface
 	 */
-	public Classifier(String classpath, String featuresfile, String modelfile, DBInterface dbi){
-		this.classpath = classpath;
+	public Classifier(String featuresfile, String modelfile, DBInterface dbi){
 		this.featuresfile = featuresfile;
 		this.modelfile = modelfile;
 		this.dbi = dbi;
@@ -143,9 +141,16 @@ public class Classifier {
 	 * @throws IOException if there is an error creating the features file
 	 */
 	public void updateClusterClasses(Date logDate, int minCardinality) throws IOException{
+		String simplename = null;
+		if(log.isInfoEnabled()){
+			simplename = this.getClass().getSimpleName();
+			log.info(simplename + " Started: " 
+					+ Calendar.getInstance().getTime());
+		}
+		dbi.initClassificationTables(logDate);
 		List<List<String>> features = dbi.getDnsFeatures(logDate, minCardinality);
 		this.prepareFeaturesFile(featuresfile, features);
-		String output = this.callClassifier(classpath, featuresfile, modelfile);
+		String output = this.callClassifier(featuresfile, modelfile);
 		if(log.isDebugEnabled()){
 			log.debug("Classifier output\n" + output);
 		}
@@ -162,6 +167,10 @@ public class Classifier {
 			log.debug(retval);
 		}
 		this.storeClusterClasses(logDate, clusterClasses);
+		if(log.isInfoEnabled()){
+			log.info(simplename + " Finished: " 
+					+ Calendar.getInstance().getTime());
+		}
 	}
 	
 	/**
@@ -193,8 +202,8 @@ public class Classifier {
 	 * @param modelfile the path to the classification model file
 	 * @return the output of the classifier
 	 */
-	private String callClassifier(String classpath, String featuresfile, String modelfile){
-		String cmdline = this.getJavaBin() + " -cp " + classpath + " weka.classifiers.trees.J48 -T " +
+	private String callClassifier(String featuresfile, String modelfile){
+		String cmdline = this.getJavaBin() + " -cp " + this.getWekaLib() + " weka.classifiers.trees.J48 -T " +
 				featuresfile + " -l " + modelfile + " -p 0";
 		return this.execToString(cmdline);
 	}
@@ -208,6 +217,30 @@ public class Classifier {
 		String filesep = System.getProperty("file.separator");
 		return System.getProperty("java.home") + filesep + "bin" + 
 				filesep + "java";
+	}
+		
+	/**
+	 * Finds the path to the weka library in the class path.
+	 * 
+	 * @return the path to the weka library
+	 */
+	private String getWekaLib(){
+		String[] pathelems = System.getProperty("java.class.path")
+				.split(System.getProperty("path.separator"));
+		for(String pathelem : pathelems){
+			if(pathelem.contains("weka")){
+				File f = new File(pathelem);
+				try {
+					return f.getCanonicalPath();
+				} catch (IOException e) {
+					if(log.isErrorEnabled()){
+						log.error("Error getting the weka lib path.", e);
+					}
+					break;
+				}
+			}
+		}
+		return null;
 	}
 	
 	/**
@@ -274,7 +307,10 @@ public class Classifier {
 		    	log.debug("Executing " + commandline);
 		    }
 		    exec.execute(commandline);
-		    String retval = outputStream.toString();	    
+		    String retval = outputStream.toString();
+		    if(log.isDebugEnabled()){
+		    	log.debug("Classifier output:\n" + retval);
+		    }
 		    return(retval);
 		} catch (IOException e) {
 			log.error("Error executing command " + command,e);

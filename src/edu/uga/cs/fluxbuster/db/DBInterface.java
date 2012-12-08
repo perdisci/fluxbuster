@@ -18,10 +18,14 @@
 
 package edu.uga.cs.fluxbuster.db;
 
+import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+
+import com.jolbox.bonecp.BoneCP;
 
 import edu.uga.cs.fluxbuster.analytics.ClusterSimilarity;
 import edu.uga.cs.fluxbuster.clustering.DomainCluster;
@@ -32,27 +36,38 @@ import edu.uga.cs.fluxbuster.clustering.DomainCluster;
  * @author Chris Neasbitt
  */
 public abstract class DBInterface {
-
+	
+	protected BoneCP connectionPool = null;
+	
 	/**
 	 * Instantiates a new database interface.
 	 *
 	 * @param connectstring the connection string to the database
 	 */
-	public DBInterface(String connectstring) {
+	public DBInterface(BoneCP connectionPool) {
+		this.connectionPool = connectionPool;
+	}
+	
+	/**
+	 * Creates a connection to the database.
+	 *
+	 * @return the connection
+	 * @throws SQLException the SQL exception if a connection can not be made.
+	 */
+	protected final Connection getConnection() throws SQLException{
+		return this.connectionPool.getConnection();
+	}
+	
+	
+	/**
+	 * Gets the connect string used to connect to the database.
+	 *
+	 * @return the connect string
+	 */
+	public final String getConnectString(){
+		return this.connectionPool.getConfig().getJdbcUrl();
 	}
 
-	/**
-	 * Instantiates a new database interface.
-	 *
-	 * @param hostname the db hostname
-	 * @param port the db port
-	 * @param dbname the name of the database
-	 * @param username the db username
-	 * @param password the db password
-	 */
-	public DBInterface(String hostname, int port, String dbname,
-			String username, String password) {
-	}
 	
 	/**
 	 * Gets the list of dns features for each cluster generated during
@@ -115,7 +130,8 @@ public abstract class DBInterface {
 	 * Execute query with result.
 	 *
 	 * @param query the query to execute
-	 * @return the result set
+	 * @return the result set or null if there is an error executing
+	 * 		the query.
 	 */
 	public abstract ResultSet executeQueryWithResult(String query);
 	
@@ -125,5 +141,39 @@ public abstract class DBInterface {
 	 * @param query the query to execute
 	 */
 	public abstract void executeQueryNoResult(String query);
+	
+	
+	/**
+	 * Creates all of the run tables and indexes in the database.
+	 * 
+	 * @param logdate the data of the run
+	 */
+	public abstract void initAllTables(Date logdate);
+	
+	/**
+	 * Creates the run tables and indexes for clustering and 
+	 * longitudinal feature calculation in the database.
+	 * 
+	 * @param logdate the data of the run
+	 */
+	public abstract void initClusterTables(Date logdate);
+	
+	
+	/**
+	 * Creates all of the run tables and indexes for calculating
+	 * cluster similarity in the database.
+	 * 
+	 * @param logdate the data of the run
+	 */
+	public abstract void initSimilarityTables(Date logdate);
+	
+	
+	/**
+	 * Creates all of the run tables and indexes for cluster
+	 * classification in the database.
+	 * 
+	 * @param logdate the data of the run
+	 */
+	public abstract void initClassificationTables(Date logdate);
 
 }

@@ -157,12 +157,22 @@ public class FeatureCalculator {
 			formatter = new Formatter(querybuf);
 			formatter.format(properties.getProperty(DOMAINSPERNETWORK_QUERY2KEY), 
 					logDateStr, logDateStr, logDateStr,add_query.toString());
-			ResultSet rs = dbi.executeQueryWithResult(querybuf.toString());		
-			while(rs.next()){
-				retval.put(rs.getInt(1), rs.getDouble(2));
+			ResultSet rs = null;
+			try{
+				rs = dbi.executeQueryWithResult(querybuf.toString());		
+				while(rs.next()){
+					retval.put(rs.getInt(1), rs.getDouble(2));
+				}
+			} catch (Exception e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			} finally {
+				if(rs != null && !rs.isClosed()){
+					rs.close();
+				}
+				formatter.close();
 			}
-			rs.getStatement().close();
-			formatter.close();
 		}
 		return retval;
 	}
@@ -197,23 +207,33 @@ public class FeatureCalculator {
 			formatter.format(properties.getProperty(NOVELTY_QUERY1_3KEY),
 					curdatestr, curdatestr);
 
-			ResultSet rs2 = dbi.executeQueryWithResult(querybuf.toString());
+			ResultSet rs2 = null;
 			Hashtable<Integer, Hashtable<String, Long>> new_resolved_ips 
 				= new Hashtable<Integer, Hashtable<String, Long>>();
-			while (rs2.next()) {
-				int cluster_id = rs2.getInt(2);
-				if (!new_resolved_ips.containsKey(cluster_id)) {
-					new_resolved_ips.put(cluster_id,
-							new Hashtable<String, Long>());
+			try{
+				rs2 = dbi.executeQueryWithResult(querybuf.toString());
+				while (rs2.next()) {
+					int cluster_id = rs2.getInt(2);
+					if (!new_resolved_ips.containsKey(cluster_id)) {
+						new_resolved_ips.put(cluster_id,
+								new Hashtable<String, Long>());
+					}
+					String secondLevelDomainName = rs2.getString(1);
+					long newips = rs2.getLong(3);
+					Hashtable<String, Long> clustertable = new_resolved_ips
+							.get(cluster_id);
+					clustertable.put(secondLevelDomainName, newips);
 				}
-				String secondLevelDomainName = rs2.getString(1);
-				long newips = rs2.getLong(3);
-				Hashtable<String, Long> clustertable = new_resolved_ips
-						.get(cluster_id);
-				clustertable.put(secondLevelDomainName, newips);
+			} catch(Exception e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			} finally{
+				if(rs2 != null && !rs2.isClosed()){
+					rs2.close();
+				}
+				formatter.close();
 			}
-			rs2.getStatement().close();
-			formatter.close();
 			
 
 			Hashtable<String, List<Integer>> numDays = new Hashtable<String, List<Integer>>();
@@ -223,28 +243,38 @@ public class FeatureCalculator {
 				formatter = new Formatter(querybuf);
 				formatter.format(properties.getProperty(NOVELTY_QUERY2KEY),
 						curdatestr, prevDateStr, curdatestr, prevDateStr);
-				ResultSet rs3 = dbi.executeQueryWithResult(querybuf.toString());
-				while (rs3.next()) {
-					String sldn = rs3.getString(1);
-					if (!numDays.containsKey(sldn)) {
-						numDays.put(sldn, new ArrayList<Integer>());
+				ResultSet rs3 = null;
+				try{
+					rs3 = dbi.executeQueryWithResult(querybuf.toString());
+					while (rs3.next()) {
+						String sldn = rs3.getString(1);
+						if (!numDays.containsKey(sldn)) {
+							numDays.put(sldn, new ArrayList<Integer>());
+						}
+						Date pd = rs3.getDate(2);
+						DateTime start = new DateTime(pd.getTime());
+						DateTime end = new DateTime(log_date.getTime());
+						Days d = Days.daysBetween(start, end);
+						int diffDays = d.getDays();
+						numDays.get(sldn).add(diffDays);
 					}
-					Date pd = rs3.getDate(2);
-					DateTime start = new DateTime(pd.getTime());
-					DateTime end = new DateTime(log_date.getTime());
-					Days d = Days.daysBetween(start, end);
-					int diffDays = d.getDays();
-					numDays.get(sldn).add(diffDays);
+				} catch (Exception e){
+					if(log.isErrorEnabled()){
+						log.error(e);
+					}
+				} finally {
+					if(rs3 != null && !rs3.isClosed()){
+						rs3.close();
+					}
+					formatter.close();
 				}
-				rs3.getStatement().close();
-				formatter.close();
 			}
 
 			Hashtable<Integer, List<Float>> clusterValues = new Hashtable<Integer, List<Float>>();
 			for (int clusterID : new_resolved_ips.keySet()) {
 				clusterValues.put(clusterID, new ArrayList<Float>());
 				
-				Hashtable<String, Long> sldnValues  = new_resolved_ips.get(clusterID);
+				Hashtable<String, Long> sldnValues = new_resolved_ips.get(clusterID);
 				for(String sldn : sldnValues.keySet()){
 					if(numDays.keySet().contains(sldn)){
 						long newIPCount = sldnValues.get(sldn);
@@ -320,14 +350,24 @@ public class FeatureCalculator {
 		}
 		
 		if(completequery.length() > 0){
-			ResultSet rs = dbi.executeQueryWithResult(completequery);
-			while(rs.next()){
-				ArrayList<Double> temp = new ArrayList<Double>();
-				temp.add(rs.getDouble(3));
-				temp.add(rs.getDouble(4));
-				retval.put(rs.getInt(1), temp);
+			ResultSet rs = null;
+			try{
+				rs = dbi.executeQueryWithResult(completequery);
+				while(rs.next()){
+					ArrayList<Double> temp = new ArrayList<Double>();
+					temp.add(rs.getDouble(3));
+					temp.add(rs.getDouble(4));
+					retval.put(rs.getInt(1), temp);
+				}
+			} catch (Exception e){
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			} finally {
+				if(rs != null && !rs.isClosed()){
+					rs.close();
+				}
 			}
-			rs.getStatement().close();
 			Hashtable<Integer, Double> queryPerDomain = getQueriesPerDomain(log_date);
 			for(Integer clusterid : retval.keySet()){
 				List<Double> values = retval.get(clusterid);
@@ -379,12 +419,22 @@ public class FeatureCalculator {
 			String resipsprefix = properties.getProperty(RESIPSPREFIXKEY);
 			
 			ArrayList<String> tablenames = new ArrayList<String>();
-			ResultSet rs1 = dbi.executeQueryWithResult(properties
-					.getProperty(TABLES_QUERY1KEY));
-			while (rs1.next()) {
-				tablenames.add(rs1.getString(1));
+			ResultSet rs1 = null;
+			try{
+				rs1 = dbi.executeQueryWithResult(properties
+						.getProperty(TABLES_QUERY1KEY));
+				while (rs1.next()) {
+					tablenames.add(rs1.getString(1));
+				}
+			} catch(Exception e){
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			} finally {
+				if(rs1 != null && !rs1.isClosed()){
+					rs1.close();
+				}
 			}
-			rs1.getStatement().close();
 	
 			GregorianCalendar cal = new GregorianCalendar();
 			cal.setTime(log_date);
@@ -427,12 +477,22 @@ public class FeatureCalculator {
 		StringBuffer querybuf = new StringBuffer();
 		Formatter formatter = new Formatter(querybuf);
 		formatter.format(properties.getProperty(PREVCLUSTER_QUERY3KEY), df.format(log_date));
-		ResultSet rs = dbi.executeQueryWithResult(querybuf.toString());
-		while(rs.next()){
-			retval.put(rs.getInt(1), rs.getDouble(2));
+		ResultSet rs = null;
+		try{
+			rs = dbi.executeQueryWithResult(querybuf.toString());
+			while(rs.next()){
+				retval.put(rs.getInt(1), rs.getDouble(2));
+			}
+		} catch(Exception e) {
+			if(log.isErrorEnabled()){
+				log.error(e);
+			}
+		} finally {
+			if(rs != null && !rs.isClosed()){
+				rs.close();
+			}
+			formatter.close();
 		}
-		rs.getStatement().close();
-		formatter.close();
 		return retval;
 	}
 	
@@ -474,6 +534,7 @@ public class FeatureCalculator {
 					+ Calendar.getInstance().getTime());
 			log.info("Updating novelty features.");
 		}
+		dbi.initClusterTables(log_date);
 		updateNoveltyFeature(log_date);
 		if(log.isInfoEnabled()){
 			log.info("Novelty features updated.");
