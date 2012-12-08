@@ -7,14 +7,18 @@
     <property name="source" value="1.6"/>
     <path id="Fluxbuster.classpath">
         <pathelement location="bin"/>
-        <pathelement location="lib/guava-11.0.jar"/>
+        <pathelement location="lib/guava-13.0.1.jar"/>
         <pathelement location="lib/postgresql-9.1-901.jdbc4.jar"/>
         <pathelement location="lib/joda-time-2.1.jar"/>
     	<pathelement location="lib/commons-exec-1.1.jar"/>
     	<pathelement location="lib/weka-3.6.8.jar"/>
     	<pathelement location="lib/commons-logging-1.1.1.jar"/>
+    	<pathelement location="lib/bonecp-0.7.1.RELEASE.jar"/>
+    	<pathelement location="lib/slf4j-api-1.7.2.jar"/>
+    	<pathelement location="lib/slf4j-jcl-1.7.2.jar"/>
+    	<pathelement location="lib/commons-cli-1.2.jar"/>
     </path>
-	<property name="javadoc.excludes.packagenames" value="edu.uga.cs.fluxbuster.analytics.test,edu.uga.cs.fluxbuster.clustering.test,edu.uga.cs.fluxbuster.db.test,edu.uga.cs.fluxbuster.features.test,edu.uga.cs.fluxbuster.classification.test"/>
+	<property name="javadoc.excludes.packagenames" value="edu.uga.cs.fluxbuster.analytics.test,edu.uga.cs.fluxbuster.clustering.test,edu.uga.cs.fluxbuster.db.test,edu.uga.cs.fluxbuster.features.test,edu.uga.cs.fluxbuster.classification.test,edu.uga.cs.fluxbuster.utils.test"/>
     <target name="init">
         <mkdir dir="bin"/>
     	<mkdir dir="doc"/>

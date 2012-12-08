@@ -25,6 +25,9 @@ import java.util.Properties;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import com.jolbox.bonecp.BoneCP;
+import com.jolbox.bonecp.BoneCPConfig;
+
 import edu.uga.cs.fluxbuster.utils.PropertiesUtils;
 
 /**
@@ -36,9 +39,26 @@ public final class DBInterfaceFactory {
 
 	private static Properties properties = null;
 	
+	@SuppressWarnings("rawtypes")
+	private static Class dbifaceClass = null;
+	
 	private static final String DBCLASSKEY = "DBINTERFACE_CLASS";
 	
+	private static final String DBDRIVERKEY = "DBINTERFACE_DRIVER";
+	
 	private static final String DBCONNECTKEY = "DBINTERFACE_CONNECTINFO";
+	
+	private static final String DBPARTKEY = "DBINTERFACE_PARTITIONS";
+	
+	private static final String DBMINCONKEY = "DBINTERFACE_MIN_CON_PER_PART";
+	
+	private static final String DBMAXCONKEY = "DBINTERFACE_MAX_CON_PER_PART";
+	
+	private static final String DBRETRYATTEMPTSKEY = "DBINTERFACE_RETRY_ATTEMPTS";
+	
+	private static final String DBRETRYDELAYKEY = "DBINTERFACE_RETRY_DELAY";
+	
+	private static BoneCP connectionPool = null;
 	
 	private static Log log = LogFactory.getLog(DBInterfaceFactory.class);
 	
@@ -59,6 +79,56 @@ public final class DBInterfaceFactory {
 	}
 	
 	/**
+	 * Initializes the factory.  This must be called once before use.
+	 * 
+	 * @throws Exception if an error occurs initializing the factory
+	 */
+	public static void init() throws Exception{
+		loadProperties();
+		DBInterfaceFactory.init(properties.getProperty(DBCONNECTKEY), 
+				properties.getProperty(DBCLASSKEY));
+	}
+	
+	/**
+	 * Initializes the factory with the supplied jdbc url and 
+	 * DBInterface implementation.  This must be called once before use.
+	 * 
+	 * @param dbconnect the JDBC url to use in creating connections
+	 * @param dbclassname
+	 * @throws Exception if an error occurs initializing the factory
+	 */
+	public static void init(String dbconnect, String dbclassname) throws Exception{
+		loadProperties();
+		if(connectionPool == null){
+			dbifaceClass = Class.forName(dbclassname);
+			Class.forName(properties.getProperty(DBDRIVERKEY));
+			BoneCPConfig config = new BoneCPConfig();
+			config.setJdbcUrl(dbconnect);
+			config.setMinConnectionsPerPartition(
+					Integer.parseInt(properties.getProperty(DBMINCONKEY)));
+			config.setMaxConnectionsPerPartition(
+					Integer.parseInt(properties.getProperty(DBMAXCONKEY)));
+			config.setAcquireRetryAttempts(
+					Integer.parseInt(properties.getProperty(DBRETRYATTEMPTSKEY)));
+			config.setAcquireRetryDelayInMs(
+					Long.parseLong(properties.getProperty(DBRETRYDELAYKEY)));
+			config.setLogStatementsEnabled(true);
+			config.setPartitionCount(
+					Integer.parseInt(properties.getProperty(DBPARTKEY)));
+			connectionPool = new BoneCP(config);
+		}
+	}
+	
+	/**
+	 * 
+	 */
+	public static void shutdown(){
+		if(connectionPool != null){
+			connectionPool.shutdown();
+		}
+	}
+	
+	/**
 	 * Creates a database interface.
 	 *
 	 * @return the database interface
@@ -66,23 +136,19 @@ public final class DBInterfaceFactory {
 	@SuppressWarnings("rawtypes")
 	public static DBInterface loadDBInterface() {
 		DBInterface retval = null;
-		try {
-			loadProperties();
+		try {						
+			DBInterfaceFactory.init();
 			
-			String dbclassname = properties.getProperty(DBCLASSKEY);
-			String dbconnect = properties.getProperty(DBCONNECTKEY);
-			
-			Class cls = Class.forName(dbclassname);
-			Constructor[] constructors = cls.getConstructors();
+			Constructor[] constructors = dbifaceClass.getConstructors();
 			Constructor con = null;
 			for (Constructor constructor : constructors) {
 				Class[] paramtypes = constructor.getParameterTypes();
 				if (paramtypes.length == 1
-						&& paramtypes[0].isInstance(new String())) {
+						&& paramtypes[0].isInstance(DBInterfaceFactory.connectionPool)) {
 					con = constructor;
 				}
 			}
-			Object obj = con.newInstance(dbconnect);
+			Object obj = con.newInstance(DBInterfaceFactory.connectionPool);
 			retval = (DBInterface) obj;
 		} catch (Exception e) {
 			if(log.isErrorEnabled()){

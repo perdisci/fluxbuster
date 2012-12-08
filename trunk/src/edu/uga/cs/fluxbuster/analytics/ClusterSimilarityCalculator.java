@@ -19,15 +19,15 @@
 package edu.uga.cs.fluxbuster.analytics;
 
 import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
+import java.util.Formatter;
 import java.util.List;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -47,7 +47,11 @@ public class ClusterSimilarityCalculator {
 
 	private Properties properties = null;
 	
-	private static String SIMILARITY_NUMTHREADSKEY = "SIMILARITY_NUMTHREADS";
+	private static String IPKEY = "INTERSECTION_QUERY_IP";
+	
+	private static String DOMAINSKEY = "INTERSECTION_QUERY_DOMAINNAME";
+	
+	private DBInterface db = null;
 	
 	private static Log log = LogFactory.getLog(ClusterSimilarityCalculator.class);
 	
@@ -64,7 +68,8 @@ public class ClusterSimilarityCalculator {
 	 * 		can not be loaded
 	 */
 	public ClusterSimilarityCalculator() throws IOException{
-		properties = PropertiesUtils.loadAppWideProperties();
+		properties = PropertiesUtils.loadProperties(this.getClass());
+		db = DBInterfaceFactory.loadDBInterface();
 	}
 	
 	/**
@@ -75,8 +80,7 @@ public class ClusterSimilarityCalculator {
 	 */
 	public void updateClusterSimilarities(Date adate){
 		DateTime adt = new DateTime(adate.getTime());
-		adt.minusDays(1);
-		Date bdate = new Date(adt.getMillis());
+		Date bdate = new Date(adt.minusDays(1).getMillis());
 		this.updateClusterSimilarities(adate, bdate);
 	}
 	
@@ -89,13 +93,33 @@ public class ClusterSimilarityCalculator {
 	 * @param bdate the date of the second clustering run
 	 */
 	public void updateClusterSimilarities(Date adate, Date bdate){
+		String simplename = null;
+		if(log.isInfoEnabled()){
+			simplename = this.getClass().getSimpleName();
+			log.info(simplename + " Started: " 
+					+ Calendar.getInstance().getTime());
+			log.info("a-date: " + adate + " b-date: " + bdate );
+			log.info("Updating ip based cluster similarities.");
+		}
 		try {
+			db.initSimilarityTables(adate);
 			updateIpClusterSimilarities(adate, bdate);
+			if(log.isInfoEnabled()){
+				log.info("Ip based cluster similarities updated.");
+				log.info("Updating domainname based cluster similarities.");
+			}
 			updateDomainnameClusterSimilarities(adate, bdate);
+			if(log.isInfoEnabled()){
+				log.info("Domainname based cluster similarities updated.");
+			}
 		} catch (Exception e) {
 			if(log.isErrorEnabled()){
 				log.error("Error calculating cluster similarities.", e);
 			}
+		}
+		if(log.isInfoEnabled()){
+			log.info(simplename + " Finished: " 
+					+ Calendar.getInstance().getTime());
 		}
 		
 	}
@@ -154,7 +178,17 @@ public class ClusterSimilarityCalculator {
 	 * @throws IOException if the similarities could not be calculated
 	 */
 	public List<ClusterSimilarity> calculateIpSimilarities(Date adate, Date bdate) throws IOException{
-		return calculateSimularities(adate, bdate, SIM_TYPE.IP);
+		SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+		String adatestr = df.format(adate);
+		String bdatestr = df.format(bdate);
+		
+		String query = properties.getProperty(IPKEY);
+		StringBuffer querybuf = new StringBuffer();
+		Formatter formatter = new Formatter(querybuf);
+		formatter.format(query, adatestr, adatestr, bdatestr);
+		query = querybuf.toString();
+		formatter.close();
+		return this.executeSimilarityQuery(query, adate, bdate);
 	}
 	
 	/**
@@ -167,111 +201,50 @@ public class ClusterSimilarityCalculator {
 	 * @throws IOException if the similarities could not be calculated
 	 */
 	public List<ClusterSimilarity> calculateDomainnameSimilarities(Date adate, Date bdate) throws IOException{
-		return calculateSimularities(adate, bdate, SIM_TYPE.DOMAINNAME);
-	}
-	
-	/**
-	 * Calculate the desired type of cluster similarity between all of the 
-	 * clusters generated during the runs on the two supplied dates.
-	 *
-	 * @param adate the date of the first clustering run
-	 * @param bdate the date of the second clustering run
-	 * @param type the type of similarity to calculate
-	 * @return the list of cluster similarities of the supplied type
-	 * @throws IOException if can not spawn similarity calculator threads
-	 */
-	private List<ClusterSimilarity> calculateSimularities(Date adate, Date bdate, 
-			SIM_TYPE type) throws IOException{
-		List<ClusterSimilarity> result = new ArrayList<ClusterSimilarity>();
-		int numthreads = Integer.parseInt(properties.getProperty(SIMILARITY_NUMTHREADSKEY));
 		SimpleDateFormat df = new SimpleDateFormat("yyyyMMdd");
+		String adatestr = df.format(adate);
+		String bdatestr = df.format(bdate);
 		
-		List<Integer> aclusters = this.getClusterIDs(adate);
-		List<Integer> bclusters = this.getClusterIDs(bdate);
-		if(log.isDebugEnabled()){
-			log.debug("aclusters size:" + aclusters.size());
-			log.debug("bclusters size:" + bclusters.size());
-		}
-		
-		AtomicReferenceArray<AtomicReferenceArray<Double>> sims = 
-				new AtomicReferenceArray<AtomicReferenceArray<Double>>(aclusters.size() + 1);
-		for(int i = 1; i < aclusters.size() + 1; i++){
-			sims.getAndSet(i, new AtomicReferenceArray<Double>(bclusters.size() + 1));
-		}
-		
-		ExecutorService service = Executors.newFixedThreadPool(numthreads);
-		int asize = aclusters.size() / numthreads;
-		int bsize = bclusters.size() / numthreads;
-		for(int i = 1; i <= aclusters.size(); i += asize){
-			int iend = 0;
-			if(i + asize < aclusters.size()){
-				iend = i + asize;
-			} else {
-				iend = i + (aclusters.size() - i);
-			}
-			List<Integer> asublist = aclusters.subList(i, iend);
-			for(int j = 1; j <= bclusters.size(); j += bsize){
-				int jend = 0;
-				if(j + bsize < bclusters.size()){
-					jend = j + bsize;
-				} else {
-					jend = j + (bclusters.size() - j);
-				}
-				List<Integer> bsublist = bclusters.subList(j, jend);
-				
-				switch(type){
-				case IP:
-					service.execute(new IpSimilarityCalculatorThread(DBInterfaceFactory.loadDBInterface(), 
-							df.format(adate),  df.format(bdate), asublist, bsublist, sims));
-					break;
-				case DOMAINNAME:
-					service.execute(new DomainnameSimilarityCalculatorThread(DBInterfaceFactory.loadDBInterface(), 
-							df.format(adate),  df.format(bdate), asublist, bsublist, sims));
-					break;
-				}
-			}
-		}
-
-		service.shutdown();
-		try {
-			while (!service.awaitTermination(30, TimeUnit.SECONDS));
-		} catch (InterruptedException e) {
-			if(log.isWarnEnabled()){
-				log.warn("", e);
-			}
-		}
-				
-		
-		for(int i = 1; i < sims.length(); i++){
-			AtomicReferenceArray<Double> row = sims.get(i);
-			for(int j = 1; j < row.length(); j++){
-				Double value = row.get(j);
-				if(log.isDebugEnabled()){
-					log.debug("Sim values: " + adate + " " + bdate + 
-							" " + i + " " + j + " " + value);
-				}
-				if(value != null) {
-					ClusterSimilarity temp = new ClusterSimilarity(adate, bdate, i, j, row.get(j));
-					if(log.isDebugEnabled()){
-						log.debug("Adding: " + temp);
-					}
-					result.add(temp);
-				}
-			}
-		}
-		return result;		
+		String query = properties.getProperty(DOMAINSKEY);
+		StringBuffer querybuf = new StringBuffer();
+		Formatter formatter = new Formatter(querybuf);
+		formatter.format(query, adatestr, adatestr,  adatestr, 
+				adatestr, bdatestr, bdatestr);
+		query = querybuf.toString();
+		formatter.close();
+		return this.executeSimilarityQuery(query, adate, bdate);
 	}
-
 	
 	/**
-	 * Gets the cluster id's for the clusters generated during the supplied
-	 * run date.
-	 *
-	 * @param adate the date of the clustering run
-	 * @return the list of cluster id's
+	 * Executes the similarity query.
+	 * 
+	 * @param query the query to execute.
+	 * @param adate the date of the first clustering run 
+	 * @param bdate the date of the second clustering run
+	 * @return the list of cluster similarities
 	 */
-	private List<Integer> getClusterIDs(Date adate){
-		DBInterface db = DBInterfaceFactory.loadDBInterface();
-		return db.getClusterIds(adate);
+	private List<ClusterSimilarity> executeSimilarityQuery(String query, Date adate, Date bdate){
+		List<ClusterSimilarity> retval = new ArrayList<ClusterSimilarity>();
+		ResultSet rs = null;
+		try{
+			rs = db.executeQueryWithResult(query);
+			while(rs.next()){
+				retval.add(new ClusterSimilarity(adate, bdate, 
+						rs.getInt(1), rs.getInt(2), rs.getDouble(3)));
+			}
+		} catch (SQLException e) {
+			if(log.isErrorEnabled()){
+				log.error(e);
+			}
+		} finally {
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			}
+		}
+		return retval;
 	}
 }

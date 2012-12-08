@@ -31,7 +31,6 @@ import java.util.Date;
 import java.util.Formatter;
 import java.util.List;
 import java.util.Map;
-import java.sql.DriverManager;
 import java.text.SimpleDateFormat;
 
 import edu.uga.cs.fluxbuster.analytics.ClusterSimilarity;
@@ -45,16 +44,15 @@ import org.apache.commons.logging.LogFactory;
 import org.postgresql.copy.CopyManager;
 import org.postgresql.core.BaseConnection;
 
+import com.jolbox.bonecp.BoneCP;
+import com.jolbox.bonecp.ConnectionHandle;
+
 /**
  * The implementation of the DBInterface for PostgresSQL.
  * 
  * @author Chris Neasbitt
  */
 public class PostgresDBInterface extends DBInterface {
-
-	private final static String driverclass = "org.postgresql.Driver";	
-	
-	private String connectstring = null;
 	
 	private static Log log = LogFactory.getLog(PostgresDBInterface.class);
 
@@ -63,50 +61,86 @@ public class PostgresDBInterface extends DBInterface {
 	 *
 	 * @param connectstring the connection string for the database 
 	 */
-	public PostgresDBInterface(String connectstring) {
-		super(connectstring);
-		this.connectstring = connectstring;
-		try {
-			Class.forName(driverclass);
-		} catch (ClassNotFoundException e) {
-			if(log.isErrorEnabled()){
-				log.error("Error loading PostgreSQL jdbc driver.", e);
-			}
+	public PostgresDBInterface(BoneCP connectionPool) {
+		super(connectionPool);
+	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#initSimilarityTables(java.util.Date)
+	 */
+	@Override
+	public void initSimilarityTables(Date logdate){
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+		String logDateTable = dateFormat.format(logdate);
+		
+		dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+		String logDateStr = dateFormat.format(logdate);
+		
+		String clusterIpSimilCreateQuery = "CREATE TABLE cluster_ip_similarity_" + logDateTable
+				+ " (CONSTRAINT cluster_ip_similarity_" +logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date), "
+				+ " CONSTRAINT cluster_ip_similarity_" + logDateTable + "_pkey PRIMARY KEY (cluster_id, candidate_cluster_id, similarity, log_date, candidate_log_date) ) "
+				+ " INHERITS (cluster_ip_similarity)";
+		
+		String clusterDomainnameSimilCreateQuery = "CREATE TABLE cluster_domainname_similarity_" + logDateTable
+				+ " (CONSTRAINT cluster_domainname_similarity_" +logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date), "
+				+ " CONSTRAINT cluster_domainname_similarity_" + logDateTable + "_pkey PRIMARY KEY (cluster_id, candidate_cluster_id, similarity, log_date, candidate_log_date) ) "
+				+ " INHERITS (cluster_domainname_similarity)";
+		
+		String clusterSimilIpCreate = "CREATE INDEX cluster_ip_similarity_" + logDateTable +"_logdate "
+				  + " ON cluster_ip_similarity_" + logDateTable +" USING btree (log_date)";
+		
+		String clusterSimilDomainnameCreate = "CREATE INDEX cluster_domainname_similarity_" + logDateTable +"_logdate "
+				  + " ON cluster_domainname_similarity_" + logDateTable +" USING btree (log_date)";
+		
+		try{
+			this.executeQueryNoResult("SELECT * FROM cluster_ip_similarity_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clusterIpSimilCreateQuery);
+			this.executeQueryNoResult(clusterSimilIpCreate);
+		}
+		
+		try{
+			this.executeQueryNoResult("SELECT * FROM cluster_domainname_similarity_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clusterDomainnameSimilCreateQuery);
+			this.executeQueryNoResult(clusterSimilDomainnameCreate);
+		}
+		
+	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#initClassificationTables(java.util.Date)
+	 */
+	@Override
+	public void initClassificationTables(Date logdate){
+		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+		String logDateTable = dateFormat.format(logdate);
+		
+		dateFormat = new SimpleDateFormat("yyyy-MM-dd");
+		String logDateStr = dateFormat.format(logdate);
+		
+		String clusterClassesCreateQuery = "CREATE TABLE cluster_classes_" + logDateTable
+	            + " (CONSTRAINT cluster_classes_"+ logDateTable + "_log_date_check CHECK (log_date = '"+ logDateStr + "'::date), "
+	            + " CONSTRAINT cluster_classes_"+ logDateTable + "_pkey PRIMARY KEY(cluster_id, sensor_name, log_date) ) "
+	            + " INHERITS (cluster_classes)";
+		
+		String clusterClassesIndexCreate = "CREATE INDEX cluster_classes_"+ logDateTable + "_logdate "
+	            + " ON cluster_classes_"+ logDateTable + " USING btree (log_date) ";
+		
+		//if the table doesn't exist, this query should throw an exception
+		try{
+			this.executeQueryNoResult("SELECT * FROM cluster_classes_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clusterClassesIndexCreate);
+			this.executeQueryNoResult(clusterClassesCreateQuery);
 		}
 	}
 	
 	/**
-	 * Instantiates a new postgres db interface.
-	 *
-	 * @param hostname the db hostname
-	 * @param port the db port
-	 * @param dbname the name of the database
-	 * @param username the db username
-	 * @param password the db password
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#initClusterTables(java.util.Date)
 	 */
-	public PostgresDBInterface(String hostname, int port, String dbname,
-			String username, String password) {
-		super(hostname, port, dbname, username, password);
-		
-		connectstring = "jdbc:postgresql://" + hostname + ":" + port +
-				"/" + dbname + "?user=" + username + "&password=" + password ;
-	
-		try {
-			Class.forName(driverclass);
-		} catch (ClassNotFoundException e) {
-			if(log.isErrorEnabled()){
-				log.error("Error loading PostgreSQL jdbc driver.", e);
-			}
-		}
-	}
-	
-	/**
-	 * Creates the run tables and indexes in the database.
-	 * 
-	 * @param logdate the data of the run
-	 */
-	public void initTables(Date logdate){
-		
+	@Override
+	public void initClusterTables(Date logdate){
 		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
 		String logDateTable = dateFormat.format(logdate);
 		
@@ -135,26 +169,9 @@ public class PostgresDBInterface extends DBInterface {
 				+ " CONSTRAINT cluster_feature_vectors_"+logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date) ) "
 				+ " INHERITS (cluster_feature_vectors) ";
 		
-		
-		String clusterIpSimilCreateQuery = "CREATE TABLE cluster_ip_similarity_" + logDateTable
-				+ " (CONSTRAINT cluster_ip_similarity_" +logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date), "
-				+ " CONSTRAINT cluster_ip_similarity_" + logDateTable + "_pkey PRIMARY KEY (cluster_id, candidate_cluster_id, similarity, log_date, candidate_log_date) ) "
-				+ " INHERITS (cluster_ip_similarity)";
-		
-		String clusterDomainnameSimilCreateQuery = "CREATE TABLE cluster_domainname_similarity_" + logDateTable
-				+ " (CONSTRAINT cluster_domainname_similarity_" +logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date), "
-				+ " CONSTRAINT cluster_domainname_similarity_" + logDateTable + "_pkey PRIMARY KEY (cluster_id, candidate_cluster_id, similarity, log_date, candidate_log_date) ) "
-				+ " INHERITS (cluster_domainname_similarity)";
-		
-		String clusterClassesCreateQuery = "CREATE TABLE cluster_classes_" + logDateTable
-	            + " (CONSTRAINT cluster_classes_"+ logDateTable + "_log_date_check CHECK (log_date = '"+ logDateStr + "'::date), "
-	            + " CONSTRAINT cluster_classes_"+ logDateTable + "_pkey PRIMARY KEY(cluster_id, sensor_name, log_date) ) "
-	            + " INHERITS (cluster_classes)";
-		
-		
 		String domainsIndexCreate = "CREATE INDEX domains_" + logDateTable +"_logdate "
-		  + " ON domains_" + logDateTable +" USING btree (log_date)";
-		
+				  + " ON domains_" + logDateTable +" USING btree (log_date)";
+				
 		String clustersIndexCreate = "CREATE INDEX clusters_" + logDateTable +"_logdate "
 				  + " ON clusters_" + logDateTable +" USING btree (log_date)";
 		
@@ -166,36 +183,52 @@ public class PostgresDBInterface extends DBInterface {
 		
 		String clusterFeaturesIndexCreate = "CREATE INDEX cluster_feature_vectors_" + logDateTable +"_logdate "
 				  + " ON cluster_feature_vectors_" + logDateTable +" USING btree (log_date)";
-		
-		String clusterSimilIpCreate = "CREATE INDEX cluster_ip_similarity_" + logDateTable +"_logdate "
-				  + " ON cluster_ip_similarity_" + logDateTable +" USING btree (log_date)";
-		
-		String clusterSimilDomainnameCreate = "CREATE INDEX cluster_domainname_similarity_" + logDateTable +"_logdate "
-				  + " ON cluster_domainname_similarity_" + logDateTable +" USING btree (log_date)";
-		
-		String clusterClassesIndexCreate = "CREATE INDEX cluster_classes_"+ logDateTable + "_logdate "
-	            + " ON cluster_classes_"+ logDateTable + " USING btree (log_date) ";
-		
+	
 		//create tables
-		this.executeQueryNoResult(domainsCreateQuery);
-		this.executeQueryNoResult(clustersCreateQuery);
-		this.executeQueryNoResult(resolvedIPSCreateQuery);
-		this.executeQueryNoResult(clusterResolvedIPSCreateQuery);
-		this.executeQueryNoResult(clusterFeaturesCreateQuery);
-		this.executeQueryNoResult(clusterIpSimilCreateQuery);
-		this.executeQueryNoResult(clusterDomainnameSimilCreateQuery);
-		this.executeQueryNoResult(clusterClassesCreateQuery);
+		try{
+			this.executeQueryNoResult("SELECT * FROM domains_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(domainsCreateQuery);
+			this.executeQueryNoResult(domainsIndexCreate);
+		}
 		
-		//create indexes
-		this.executeQueryNoResult(domainsIndexCreate);
-		this.executeQueryNoResult(clustersIndexCreate);
-		this.executeQueryNoResult(resolvedIPSIndexCreate);
-		this.executeQueryNoResult(clusterResolvedIPSIndexCreate);
-		this.executeQueryNoResult(clusterFeaturesIndexCreate);
-		this.executeQueryNoResult(clusterSimilIpCreate);
-		this.executeQueryNoResult(clusterSimilDomainnameCreate);
-		this.executeQueryNoResult(clusterClassesIndexCreate);
+		try{
+			this.executeQueryNoResult("SELECT * FROM clusters_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clustersCreateQuery);
+			this.executeQueryNoResult(clustersIndexCreate);
+		}
 		
+		try{
+			this.executeQueryNoResult("SELECT * FROM resolved_ips_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(resolvedIPSCreateQuery);
+			this.executeQueryNoResult(resolvedIPSIndexCreate);
+		}
+		
+		try{
+			this.executeQueryNoResult("SELECT * FROM cluster_resolved_ips_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clusterResolvedIPSCreateQuery);
+			this.executeQueryNoResult(clusterResolvedIPSIndexCreate);
+		}
+		
+		try{
+			this.executeQueryNoResult("SELECT * FROM cluster_feature_vectors_" + logDateTable + " limit 1", true);
+		} catch(Exception e) {
+			this.executeQueryNoResult(clusterFeaturesCreateQuery);
+			this.executeQueryNoResult(clusterFeaturesIndexCreate);
+		}
+	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#initAllTables(java.util.Date)
+	 */
+	@Override
+	public void initAllTables(Date logdate){
+		this.initClusterTables(logdate);
+		this.initSimilarityTables(logdate);
+		this.initClassificationTables(logdate);
 	}
 	
 
@@ -208,10 +241,7 @@ public class PostgresDBInterface extends DBInterface {
 		
 		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
 		String logDateTable = dateFormat.format(logdate);
-		
-		//Unconditionally create the tables, if they already exist the query will do nothing.
-		initTables(logdate);
-		
+				
 		Connection con = null;
 		PreparedStatement domainsInsertStmt = null;
 		PreparedStatement domainsSelectStmt = null;
@@ -363,25 +393,25 @@ public class PostgresDBInterface extends DBInterface {
 			}
 		} finally {
 			try {
-				if(domainsInsertStmt != null){
+				if(domainsInsertStmt != null && !domainsInsertStmt.isClosed()){
 					domainsInsertStmt.close();
 				}
-				if(domainsSelectStmt != null){
+				if(domainsSelectStmt != null && !domainsSelectStmt.isClosed()){
 					domainsSelectStmt.close();
 				}
-				if(clustersInsertStmt != null){
+				if(clustersInsertStmt != null && !clustersInsertStmt.isClosed()){
 					clustersInsertStmt.close();
 				}
-				if(resolvedIPSInsertStmt != null){
+				if(resolvedIPSInsertStmt != null && !resolvedIPSInsertStmt.isClosed()){
 					resolvedIPSInsertStmt.close();
 				}
-				if(clusterResolvedIPSInsertStmt != null){
+				if(clusterResolvedIPSInsertStmt != null && !clusterResolvedIPSInsertStmt.isClosed()){
 					clusterResolvedIPSInsertStmt.close();
 				}
-				if(clusterFeatureVectorsInsertStmt != null){
+				if(clusterFeatureVectorsInsertStmt != null && !clusterFeatureVectorsInsertStmt.isClosed()){
 					clusterFeatureVectorsInsertStmt.close();
 				}
-				if(con != null){
+				if(con != null && !con.isClosed()){
 					con.close();
 				}
 			} catch (SQLException e) {
@@ -448,27 +478,6 @@ public class PostgresDBInterface extends DBInterface {
 		}
     }
 	
-	
-	
-	/**
-	 * Gets the connect string used to connect to the database.
-	 *
-	 * @return the connect string
-	 */
-	public String getConnectString(){
-		return this.connectstring;
-	}
-	
-	/**
-	 * Creates a connection to the database.
-	 *
-	 * @return the connection
-	 * @throws SQLException the SQL exception if a connection can not be made.
-	 */
-	private Connection getConnection() throws SQLException{
-		return DriverManager.getConnection(this.connectstring);
-	}
-	
 	/**
 	 * @see edu.uga.cs.fluxbuster.db.DBInterface#executeQueryWithResult(java.lang.String)
 	 */
@@ -484,16 +493,17 @@ public class PostgresDBInterface extends DBInterface {
 			retval = stmt.executeQuery(query);
 			con.commit();
 		} catch (SQLException e) {
+			retval = null;
 			if(log.isErrorEnabled()){
 				log.error(query, e);
 			}
-			if(con != null){
-				try {
+			try{
+				if(con != null && !con.isClosed()){
 					con.rollback();
-				} catch (SQLException e1) {
-					if(log.isErrorEnabled()){
-						log.error("Error during rollback.", e1);
-					}
+				} 
+			} catch (SQLException e1) {
+				if(log.isErrorEnabled()){
+					log.error("Error during rollback.", e1);
 				}
 			}
 		} finally {
@@ -544,9 +554,12 @@ public class PostgresDBInterface extends DBInterface {
 			stmt.execute(query);
 			con.commit();
 		} catch (SQLException e) {
-			if(log.isErrorEnabled()){
-				log.error(query, e);
+			if(!giveException){
+				if(log.isErrorEnabled()){
+					log.error(query, e);
+				}
 			}
+			
 			if(con != null){
 				try {
 					con.rollback();
@@ -588,7 +601,13 @@ public class PostgresDBInterface extends DBInterface {
 		try {
 			con = this.getConnection();
 			con.setAutoCommit(false);
-			manager = new CopyManager((BaseConnection) con);
+			if(con instanceof com.jolbox.bonecp.ConnectionHandle){
+				ConnectionHandle handle = (ConnectionHandle)con;
+				manager = new CopyManager(
+						(BaseConnection) handle.getInternalConnection());
+			} else {
+				manager = new CopyManager((BaseConnection) con);
+			}
 			
 			manager.copyIn(query, reader);
 			con.commit();
@@ -714,6 +733,14 @@ public class PostgresDBInterface extends DBInterface {
 			if(log.isErrorEnabled()){
 				log.error("Error retrieving cluster ids.", e);
 			}
+		} finally {
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			}
 		}
 		return retval;
 	}
@@ -764,7 +791,7 @@ public class PostgresDBInterface extends DBInterface {
 		
 			for(ClusterSimilarity s : sims){
 				formatter.format(format, s.getAClusterId(), s.getBClusterId(), s.getSim(),
-						dateFormat.format(s.getADate()), dateFormat.format(s.getADate()));
+						dateFormat.format(s.getADate()), dateFormat.format(s.getBDate()));
 			}
 			this.executeCopyIn(copyQuery, new StringReader(databuf.toString()));
 		}
@@ -794,6 +821,14 @@ public class PostgresDBInterface extends DBInterface {
 		} catch (SQLException e) {
 			if(log.isErrorEnabled()){
 				log.error("Error retrieving dns features.", e);
+			}
+		} finally {
+			try {
+				rs.close();
+			} catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
 			}
 		}
 		return retval;
@@ -827,6 +862,25 @@ public class PostgresDBInterface extends DBInterface {
 		} catch (SQLException e) {
 			if(log.isErrorEnabled()){
 				log.error("Error storing cluster classes.", e);
+			}
+		} finally {
+			try{
+				if(clusterClassesInsertStmt != null && !clusterClassesInsertStmt.isClosed()){
+					clusterClassesInsertStmt.close();
+				}
+			}catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error("e");
+				}
+			}
+			try{
+				if(con != null && !con.isClosed()){
+					con.close();
+				}
+			}catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error("e");
+				}
 			}
 		}
 	}

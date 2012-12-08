@@ -9,7 +9,7 @@ pre-constructed decision tree.
 [Compilation]
 
 Build Requirements:
-1. Java JDK  1.6 or greater
+1. Java JDK 1.6 or greater
 2. ant
 
 To compile Fluxbuster from the directory containing the build.xml file execute 
@@ -59,12 +59,10 @@ indexes, etc. required by Fluxbuster.
 
 [Configuration]
 
-Fluxbuster is configured through various .properties files.  Some of the 
-configuration properties in these files should not be manually configured.  
-What follows is the list of manually configurable properties for Fluxbuster and 
-the files in which they reside:
+Fluxbuster is configured through several .properties files. What follows are 
+the locations of each .properties file and a description of their attributes. 
 
-edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties
+edu/uga/cs/fluxbuster/fluxbuster.properties
 
 	SELECTED_CFD_FILE : The path to a list of domains that should be clustered
 		regardless of their candidate score.  If this is properties is not 
@@ -93,22 +91,34 @@ edu/uga/cs/fluxbuster/clustering/ClusterGenerator.properties
 		ex. 0.75
 		
 	CANDIDATE_FLUX_DIR : The directory containing the SIE source files.
-	
-edu/uga/cs/fluxbuster/db/DBInterfaceFactory.properties
 
-	DBINTERFACE_CONNECTINFO : The jdbc connection string to the fluxbuster database.  
+	DBINTERFACE_CONNECTINFO : The JDBC connection string to the fluxbuster database.  
 		ex. jdbc:postgresql://host.example.com:54321/fluxbuster?user=sample&password=secret
-
-edu/uga/cs/fluxbuster/classification/Classifier.properties
+		
+	DBINTERFACE_DRIVER : The full class name of the JDBC driver class to use.
+		ex. org.postgresql.Driver
+		
+	DBINTERFACE_CLASS : The full class name of the DBInterface implementation to
+		use.
+		ex. edu.uga.cs.fluxbuster.db.PostgresDBInterface
 
 	FEATURES_PATH : A path to store the constructed features file.  This file 
 		is generated dynamically each time the classifier is called.
 		ex. /tmp/unlabeled_tmp.arff
 	
-edu/uga/cs/fluxbuster/analytics/ClusterSimilarityCalculator.properties
-
-	SIMILARITY_NUMTHREADS :  The number of thread to use when calculating domain
-		and IP based similarities. This value should be a positive integer.
+	The following are options related BoneCP.  In most cases the default options
+	will suffice.  For further information about each option see:
+	http://jolbox.com/bonecp/downloads/site/apidocs/com/jolbox/bonecp/BoneCPConfig.html
+			
+	DBINTERFACE_PARTITIONS : BoneCPConfig.setPartitionCount
+	
+	DBINTERFACE_MIN_CON_PER_PART : BoneCPConfig.setMinConnectionsPerPartition
+	
+	DBINTERFACE_MAX_CON_PER_PART : BoneCPConfig.setMaxConnectionsPerPartition
+	
+	DBINTERFACE_RETRY_ATTEMPTS : BoneCPConfig.setAcquireRetryAttempts
+	
+	DBINTERFACE_RETRY_DELAY : BoneCPConfig.setAcquireRetryDelayInMs
 	
 commons-logging.properties
 
@@ -134,14 +144,21 @@ bin directory after building the program.
 
 You can execute Fluxbuster via the fluxbuster.sh bash script.
 
-Usage: fluxbuster.sh <start_date> <end_date>
+usage: fluxbuster.sh
 
-	start_date
-		the start of the data period, should be specified in yyyyMMdd format. 
-		ex. 20120101
-	end_date
-		the end of the data period, should be specified in yyyyMMdd format. 
-		ex. 20120102
+If none of the options g, f, s, c are specified then the program will execute as
+if all of them have been specified.  Otherwise, the program will only execute
+the options specified.
+
+-?,--help                Print help message.
+-c,--classify-clusters   Classify clusters. (Optional)
+-d,--start-date <arg>    The start date of the input data.  Should be in
+                         yyyyMMdd format.
+-e,--end-date <arg>      The end date of the input data.  Should be in yyyyMMdd
+                         format.
+-f,--calc-features       Calculate cluster features. (Optional)
+-g,--generate-clusters   Generate clusters only. (Optional)
+-s,--calc-similarity     Calculate cluster similarities. (Optional)
 		
 To access the results of Fluxbuster you can use the following SQL examples to 
 query the Fluxbuster database.
