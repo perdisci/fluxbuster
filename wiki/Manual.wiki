@@ -94,9 +94,9 @@ wish to place the parsed data files.
 
 == Configuration ==
 
-Fluxbuster is configured through several .properties files.  What follows are the locations of each .properties file and a description of their attributes.
+Fluxbuster is configured through several .properties files in the bin directory once the program has been built.  What follows is a description of each of the attributes in the .properties files.
 
-==== `edu/uga/cs/fluxbuster/fluxbuster.properties` ====
+==== `fluxbuster.properties` ====
 
   * *SELECTED_CFD_FILE* : The path to a list of domains that should be clustered regardless of their candidate score. If this is properties is not specified it is ignored.
   * *GOOD_CANDIDATE_THRESHOLD* : The candidate score threshold. Those candidate domains with a candidate score greater than the threshold are considered for clustering. This value should be between 0.0 and 1.0. ex. 0.5
@@ -119,18 +119,15 @@ The following are options related BoneCP.  In most cases the default options wil
   * *DBINTERFACE_RETRY_ATTEMPTS* : BoneCPConfig.setAcquireRetryAttempts
   * *DBINTERFACE_RETRY_DELAY* : BoneCPConfig.setAcquireRetryDelayInMs
 
-==== `edu/uga/cs/fluxbuster/commons-logging.properties` ====
+==== `commons-logging.properties` ====
 
   * *org.apache.commons.logging.Log* : Sets the logging implementation class. By default this is set to `org.apache.commons.logging.impl.SimpleLog` which can be configured in the simplelog.properties file.
 
-==== `edu/uga/cs/fluxbuster/simplelog.properties` ====
+==== `simplelog.properties` ====
 
   * *org.apache.commons.logging.simplelog.defaultlog* : the default minimum logging level.
   * *org.apache.commons.logging.simplelog.showdatetime* : display a timestamp for each log entry.
   * *org.apache.commons.logging.simplelog.showlogname* : Set to true if you want the Log instance name to be included in output messages.
-
-* NOTE *: you should configure the versions of the .properties files located in the
-bin directory after building the program.
 
 == Usage ==
 
@@ -151,7 +148,7 @@ the options specified.
 -e,--end-date <arg>      The end date of the input data.  Should be in yyyyMMdd
                          format.
 -f,--calc-features       Calculate cluster features. (Optional)
--g,--generate-clusters   Generate clusters only. (Optional)
+-g,--generate-clusters   Generate clusters. (Optional)
 -s,--calc-similarity     Calculate cluster similarities. (Optional)
 </pre>
 
