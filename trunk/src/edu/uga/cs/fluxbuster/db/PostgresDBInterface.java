@@ -131,8 +131,8 @@ public class PostgresDBInterface extends DBInterface {
 		try{
 			this.executeQueryNoResult("SELECT * FROM cluster_classes_" + logDateTable + " limit 1", true);
 		} catch(Exception e) {
-			this.executeQueryNoResult(clusterClassesIndexCreate);
 			this.executeQueryNoResult(clusterClassesCreateQuery);
+			this.executeQueryNoResult(clusterClassesIndexCreate);
 		}
 	}
 	
