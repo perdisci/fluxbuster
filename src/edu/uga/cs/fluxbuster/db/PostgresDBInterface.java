@@ -59,7 +59,8 @@ public class PostgresDBInterface extends DBInterface {
 	/**
 	 * Instantiates a new postgres db interface.
 	 *
-	 * @param connectstring the connection string for the database 
+	 * @param connectionPool the BoneCP connection pool from
+	 * 		which to generate connections.
 	 */
 	public PostgresDBInterface(BoneCP connectionPool) {
 		super(connectionPool);

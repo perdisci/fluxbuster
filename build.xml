@@ -10,7 +10,6 @@
         <pathelement location="lib/guava-13.0.1.jar"/>
         <pathelement location="lib/postgresql-9.1-901.jdbc4.jar"/>
         <pathelement location="lib/joda-time-2.1.jar"/>
-    	<pathelement location="lib/commons-exec-1.1.jar"/>
     	<pathelement location="lib/weka-3.6.8.jar"/>
     	<pathelement location="lib/commons-logging-1.1.1.jar"/>
     	<pathelement location="lib/bonecp-0.7.1.RELEASE.jar"/>
@@ -59,6 +58,8 @@
         <antcall target="build"/>
     </target>
 	<target name="doc" depends="init" description="generate documentation">
-		<javadoc sourcepath="src" destdir="doc" excludepackagenames="${javadoc.excludes.packagenames}"/>
+		<javadoc sourcepath="src" destdir="doc" excludepackagenames="${javadoc.excludes.packagenames}">
+			<classpath refid="Fluxbuster.classpath"/>
+		</javadoc>
 	</target>
 </project>

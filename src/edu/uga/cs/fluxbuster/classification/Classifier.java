@@ -18,11 +18,10 @@
 
 package edu.uga.cs.fluxbuster.classification;
 
-import java.io.ByteArrayOutputStream;
+
+import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -30,15 +29,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
-import org.apache.commons.exec.PumpStreamHandler;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+
+import weka.classifiers.trees.J48;
+import weka.core.Instances;
+import weka.core.converters.ConverterUtils.DataSource;
 
 import edu.uga.cs.fluxbuster.db.DBInterface;
 import edu.uga.cs.fluxbuster.db.DBInterfaceFactory;
@@ -62,15 +59,14 @@ public class Classifier {
 			"@ATTRIBUTE class {Flux, NOT_Flux}\n\n" +
 			"@DATA\n";
 	
-	private static final String FEATURES_PATHKEY = "FEATURES_PATH";
 	
 	private static final String MODEL_PATHKEY = "MODEL_PATH";
 	
-	private String featuresfile, modelfile;
+	private String modelfile;
 	
 	private DBInterface dbi;
 	
-	private Properties localprops = null, appprops = null;
+	private Properties localprops = null;
 	
 	private static Log log = LogFactory.getLog(Classifier.class);
 	
@@ -97,43 +93,51 @@ public class Classifier {
 		if(localprops == null){
 			localprops = PropertiesUtils.loadProperties(this.getClass());
 		}
-		if(appprops == null){
-			appprops = PropertiesUtils.loadAppWideProperties();
-		}
-		this.featuresfile = appprops.getProperty(FEATURES_PATHKEY);
-		this.modelfile = new File(localprops.getProperty(MODEL_PATHKEY))
-			.getCanonicalPath();
+		this.setModelPath(new File(localprops.getProperty(MODEL_PATHKEY))
+			.getCanonicalPath());
 		this.dbi = dbi;
 	}
-	
+		
 	/**
 	 * Instantiates a new classifier.
 	 *
-	 * @param classpath the class path for running weka
-	 * @param featuresfile the path to store the features file
 	 * @param modelfile the path to the classification model file
 	 */
-	public Classifier(String featuresfile, String modelfile){
-		this(featuresfile, modelfile, DBInterfaceFactory.loadDBInterface());
+	public Classifier(String modelfile){
+		this(modelfile, DBInterfaceFactory.loadDBInterface());
 	}
 	
 	/**
 	 * Instantiates a new feature calculator with a specific database
 	 * interface.
 	 *
-	 * @param classpath the class path for running weka
-	 * @param featuresfile the path to store the features file
 	 * @param modelfile the absolute path to the classification model file
 	 * @param dbi the database interface
 	 */
-	public Classifier(String featuresfile, String modelfile, DBInterface dbi){
-		this.featuresfile = featuresfile;
+	public Classifier(String modelfile, DBInterface dbi){
 		this.modelfile = modelfile;
 		this.dbi = dbi;
 	}
 	
 	/**
-	 * Executes the classifier and stores the results in the database.
+	 * Sets the path to the trained J48 decision tree.
+	 * 
+	 * @param modelfile the path to the serialized model
+	 */
+	public void setModelPath(String modelfile){
+		this.modelfile = modelfile;
+	}
+	
+	/**
+	 * Gets the path to the trained J48 decision tree.
+	 */
+	public String getModelPath(){
+		return this.modelfile;
+	}
+	
+	/**
+	 * Prepares the features from the db, executes the classifier, and 
+	 * stores the results in the database.
 	 *
 	 * @param logDate the clustering run date
 	 * @param minCardinality the minimum network cardinality of clusters
@@ -148,14 +152,8 @@ public class Classifier {
 					+ Calendar.getInstance().getTime());
 		}
 		dbi.initClassificationTables(logDate);
-		List<List<String>> features = dbi.getDnsFeatures(logDate, minCardinality);
-		this.prepareFeaturesFile(featuresfile, features);
-		String output = this.callClassifier(featuresfile, modelfile);
-		if(log.isDebugEnabled()){
-			log.debug("Classifier output\n" + output);
-		}
 		Map<String, List<Integer>> clusterClasses = 
-				this.parseClassifierOutput(output, features);
+				this.classifyClusters(logDate, minCardinality);
 		if(log.isDebugEnabled()){
 			String retval = "";
 			for(String cls : clusterClasses.keySet()){
@@ -174,148 +172,93 @@ public class Classifier {
 	}
 	
 	/**
-	 * Prepares the features file from the clustering data.
-	 *
-	 * @param filepath the path to store the prepared features file
-	 * @param features the feature values to use in classification
-	 * @throws IOException if there is an error writing the features
-	 * 		file
-	 */
-	private void prepareFeaturesFile(String filepath, 
-			List<List<String>> features) throws IOException{
-		PrintWriter writer = new PrintWriter(new FileWriter(new File(filepath)));
-		writer.write(featuresHeader);
-		for(List<String> featurerow : features){
-			for(int i = 2; i < featurerow.size(); i++){
-				writer.write(Double.parseDouble(featurerow.get(i)) + ", ");
-			}
-			writer.write("NOT_Flux\n");
-		}
-		writer.close();
-	}
-	
-	/**
-	 * Executes the classifier in a separate process.
-	 *
-	 * @param classpath the class path for running weka
-	 * @param featuresfile the path to store the features file
-	 * @param modelfile the path to the classification model file
-	 * @return the output of the classifier
-	 */
-	private String callClassifier(String featuresfile, String modelfile){
-		String cmdline = this.getJavaBin() + " -cp " + this.getWekaLib() + " weka.classifiers.trees.J48 -T " +
-				featuresfile + " -l " + modelfile + " -p 0";
-		return this.execToString(cmdline);
-	}
-	
-	/**
-	 * Finds the path of the currently executing jvm.
+	 * Prepares the features from the db and executes the classifier.
 	 * 
-	 * @return the path to the jvm
+	 * @param logDate the run date of the clusters
+	 * @param minCardinality the minimum network cardinality for a cluster
+	 * 		to be consider for classification
+	 * @return a map of the classified clusters, the keys are the classes
+	 * 		and the values are lists of cluster id's belonging to those classes
+	 * @throws IOException
 	 */
-	private String getJavaBin(){
-		String filesep = System.getProperty("file.separator");
-		return System.getProperty("java.home") + filesep + "bin" + 
-				filesep + "java";
-	}
-		
-	/**
-	 * Finds the path to the weka library in the class path.
-	 * 
-	 * @return the path to the weka library
-	 */
-	private String getWekaLib(){
-		String[] pathelems = System.getProperty("java.class.path")
-				.split(System.getProperty("path.separator"));
-		for(String pathelem : pathelems){
-			if(pathelem.contains("weka")){
-				File f = new File(pathelem);
-				try {
-					return f.getCanonicalPath();
-				} catch (IOException e) {
-					if(log.isErrorEnabled()){
-						log.error("Error getting the weka lib path.", e);
-					}
-					break;
-				}
-			}
-		}
-		return null;
-	}
-	
-	/**
-	 * Parses the classifier output.
-	 *
-	 * @param output the output of the classifier
-	 * @param features the feature values for each cluster
-	 * @return a map of classified clusters the keys are the class names
-	 * 		and the values are the list of cluster ids in the class
-	 */
-	private Map<String, List<Integer>> parseClassifierOutput(String output, 
-			List<List<String>> features){
-		Map<String, List<Integer>> retval = 
-				new HashMap<String, List<Integer>>();
-		retval.put("Flux", new ArrayList<Integer>());
-		retval.put("NOT_Flux", new ArrayList<Integer>());
-		
-		Pattern validatorRegex = Pattern.compile("^\\s+\\d");
-		int feature_index = 0;
-		String[] lines = output.split("\n");
+	public Map<String, List<Integer>> classifyClusters(Date logDate, 
+			int minCardinality) throws IOException{
+		Map<String, List<Integer>> retval = null;
 		if(log.isDebugEnabled()){
-			log.debug("Features size " + features.size());
+			log.debug("Retrieving features from db.");
 		}
-		for(int i = 0; i < lines.length; i++){
-			Matcher validator = validatorRegex.matcher(lines[i]);
-			if(validator.find()){
-				List<String> sample = features.get(feature_index++);
-				String clusterid = sample.get(0);
-				if(log.isDebugEnabled()){
-					log.debug("Cluster id " + clusterid + " log line " + lines[i]);
-				}
-				if(lines[i].contains(":Flux")){
-					if(log.isDebugEnabled()){
-						log.debug("Adding " + clusterid + " to Flux class.");
-					}
-					retval.get("Flux").add(Integer.parseInt(clusterid));
-				} else {
-					if(log.isDebugEnabled()){
-						log.debug("Adding " + clusterid + " to NOT_Flux class.");
-					}
-					retval.get("NOT_Flux").add(Integer.parseInt(clusterid));
-				}
-			}
+		List<List<String>> features = dbi.getDnsFeatures(logDate, minCardinality);
+		if(log.isDebugEnabled()){
+			log.debug("Features retrieved.");
+			log.debug("Preparing features file.");
+		}
+		String prepfeatures = this.prepareFeatures(features);
+		if(log.isDebugEnabled()){
+			log.debug("File prepared.");
+			log.debug("Executing J48 classifier.");
+		}
+		retval = this.executeClassifier(prepfeatures, modelfile, features);
+		if(log.isDebugEnabled()){
+			log.debug("J48 execution complete.");
 		}
 		return retval;
 	}
 	
-	//http://stackoverflow.com/questions/6295866/how-can-i-capture-the-output-of-a-command-as-a-string-with-commons-exec
 	/**
-	 * Executes a command in a separate process and returns the output
-	 * of the command.
-	 *
-	 * @param command the command
-	 * @return the output of the command
+	 * Generates a String of the features in arff format
+	 * 
+	 * @param features the raw features
+	 * @return the arff format version of the features
 	 */
-	public String execToString(String command){
-		try{
-		    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-		    CommandLine commandline = CommandLine.parse(command);
-		    DefaultExecutor exec = new DefaultExecutor();
-		    PumpStreamHandler streamHandler = new PumpStreamHandler(outputStream);
-		    exec.setStreamHandler(streamHandler);
-		    if(log.isDebugEnabled()){
-		    	log.debug("Executing " + commandline);
-		    }
-		    exec.execute(commandline);
-		    String retval = outputStream.toString();
-		    if(log.isDebugEnabled()){
-		    	log.debug("Classifier output:\n" + retval);
-		    }
-		    return(retval);
-		} catch (IOException e) {
-			log.error("Error executing command " + command,e);
+	private String prepareFeatures(List<List<String>> features){
+		StringBuffer buf = new StringBuffer();
+		buf.append(featuresHeader);
+		for(List<String> featurerow : features){
+			for(int i = 2; i < featurerow.size(); i++){
+				buf.append(Double.parseDouble(featurerow.get(i)) + ", ");
+			}
+			buf.append("NOT_Flux\n");
 		}
-		return new String();
+		return buf.toString();	
+	}
+	
+	
+	/**
+	 * Executes the classifier.
+	 * 
+	 * @param prepfeatures the prepared features in arff format
+	 * @param modelfile the path to the serialized model
+	 * @param rawfeatures the raw features retrieved from the database
+	 * @return a map of the classified clusters, the keys are the classes
+	 * 		and the values are lists of cluster id's belonging to those classes
+	 */
+	private Map<String, List<Integer>> executeClassifier(String prepfeatures, String modelfile, 
+			List<List<String>> rawfeatures){
+		Map<String, List<Integer>> retval = new HashMap<String, List<Integer>>();
+		try{
+			DataSource source = new DataSource(new ByteArrayInputStream(prepfeatures.getBytes()));
+			Instances data = source.getDataSet();
+			if (data.classIndex() == -1){
+				data.setClassIndex(data.numAttributes() - 1);
+			}
+			String[] options = weka.core.Utils.splitOptions("-p 0");
+			J48 cls = (J48)weka.core.SerializationHelper.read(modelfile);
+			cls.setOptions(options);
+			for(int i = 0; i < data.numInstances(); i++){
+				Integer clusterid = Integer.parseInt(rawfeatures.get(i).get(0));
+				double pred = cls.classifyInstance(data.instance(i));
+				String iclass = data.classAttribute().value((int)pred);
+				if(!retval.containsKey(iclass)){
+					retval.put(iclass, new ArrayList<Integer>());
+				}
+				retval.get(iclass).add(clusterid);
+			}
+		} catch (Exception e) {
+			if(log.isErrorEnabled()){
+				log.error("Error executing classifier.", e);
+			}
+		}
+		return retval;
 	}
 	
 	/**

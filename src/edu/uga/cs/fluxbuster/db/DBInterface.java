@@ -42,7 +42,8 @@ public abstract class DBInterface {
 	/**
 	 * Instantiates a new database interface.
 	 *
-	 * @param connectstring the connection string to the database
+	 * @param connectionPool the BoneCP connection pool from
+	 * 		which to generate connections.
 	 */
 	public DBInterface(BoneCP connectionPool) {
 		this.connectionPool = connectionPool;

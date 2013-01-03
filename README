@@ -59,10 +59,11 @@ indexes, etc. required by Fluxbuster.
 
 [Configuration]
 
-Fluxbuster is configured through several .properties files. What follows are 
-the locations of each .properties file and a description of their attributes. 
+Fluxbuster is configured through several .properties files in the bin directory
+once the program has been built. What follows is a description of each of the
+attributes in the .properties files. 
 
-edu/uga/cs/fluxbuster/fluxbuster.properties
+fluxbuster.properties
 
 	SELECTED_CFD_FILE : The path to a list of domains that should be clustered
 		regardless of their candidate score.  If this is properties is not 
@@ -101,10 +102,6 @@ edu/uga/cs/fluxbuster/fluxbuster.properties
 	DBINTERFACE_CLASS : The full class name of the DBInterface implementation to
 		use.
 		ex. edu.uga.cs.fluxbuster.db.PostgresDBInterface
-
-	FEATURES_PATH : A path to store the constructed features file.  This file 
-		is generated dynamically each time the classifier is called.
-		ex. /tmp/unlabeled_tmp.arff
 	
 	The following are options related BoneCP.  In most cases the default options
 	will suffice.  For further information about each option see:
@@ -137,9 +134,6 @@ simplelog.properties
 	org.apache.commons.logging.simplelog.showlogname : Set to true if you want 
 		the Log instance name to be included in output messages.
 
-NOTE: you should configure the versions of the .properties files located in the
-bin directory after building the program.
-
 [Usage]
 
 You can execute Fluxbuster via the fluxbuster.sh bash script.
@@ -157,7 +151,7 @@ the options specified.
 -e,--end-date <arg>      The end date of the input data.  Should be in yyyyMMdd
                          format.
 -f,--calc-features       Calculate cluster features. (Optional)
--g,--generate-clusters   Generate clusters only. (Optional)
+-g,--generate-clusters   Generate clusters. (Optional)
 -s,--calc-similarity     Calculate cluster similarities. (Optional)
 		
 To access the results of Fluxbuster you can use the following SQL examples to 
