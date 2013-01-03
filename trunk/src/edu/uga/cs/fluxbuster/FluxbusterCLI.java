@@ -80,7 +80,7 @@ public class FluxbusterCLI {
 				.addOption(
 					OptionBuilder.hasArg(false)
 					.isRequired(false)
-					.withDescription("Generate clusters only. (Optional)")
+					.withDescription("Generate clusters. (Optional)")
 					.withLongOpt("generate-clusters")
 					.create("g"))
 				.addOption(

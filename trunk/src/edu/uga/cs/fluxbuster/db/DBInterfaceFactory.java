@@ -65,7 +65,7 @@ public final class DBInterfaceFactory {
 	/**
 	 * Instantiates a new database interface factory.
 	 */
-	protected DBInterfaceFactory(){}
+	private DBInterfaceFactory(){}
 	
 	/**
 	 * Load properties.
@@ -86,7 +86,8 @@ public final class DBInterfaceFactory {
 	public static void init() throws Exception{
 		loadProperties();
 		DBInterfaceFactory.init(properties.getProperty(DBCONNECTKEY), 
-				properties.getProperty(DBCLASSKEY));
+				properties.getProperty(DBCLASSKEY),
+				properties.getProperty(DBDRIVERKEY));
 	}
 	
 	/**
@@ -94,14 +95,16 @@ public final class DBInterfaceFactory {
 	 * DBInterface implementation.  This must be called once before use.
 	 * 
 	 * @param dbconnect the JDBC url to use in creating connections
-	 * @param dbclassname
+	 * @param dbclassname the full class name of the DBInterface implementation
+	 * @param dbdriver the full class name of the JDBC driver
 	 * @throws Exception if an error occurs initializing the factory
 	 */
-	public static void init(String dbconnect, String dbclassname) throws Exception{
+	public static void init(String dbconnect, String dbclassname, 
+			String dbdriver) throws Exception{
 		loadProperties();
 		if(connectionPool == null){
 			dbifaceClass = Class.forName(dbclassname);
-			Class.forName(properties.getProperty(DBDRIVERKEY));
+			Class.forName(dbdriver);
 			BoneCPConfig config = new BoneCPConfig();
 			config.setJdbcUrl(dbconnect);
 			config.setMinConnectionsPerPartition(
