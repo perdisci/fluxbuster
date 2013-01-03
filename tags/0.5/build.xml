@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project basedir="." default="build" name="Fluxbuster">
+    <property environment="env"/>
+    <property name="ECLIPSE_HOME" value="../../../../usr/lib64/eclipse"/>
+    <property name="debuglevel" value="source,lines,vars"/>
+    <property name="target" value="1.6"/>
+    <property name="source" value="1.6"/>
+    <path id="Fluxbuster.classpath">
+        <pathelement location="bin"/>
+        <pathelement location="lib/guava-13.0.1.jar"/>
+        <pathelement location="lib/postgresql-9.1-901.jdbc4.jar"/>
+        <pathelement location="lib/joda-time-2.1.jar"/>
+    	<pathelement location="lib/weka-3.6.8.jar"/>
+    	<pathelement location="lib/commons-logging-1.1.1.jar"/>
+    	<pathelement location="lib/bonecp-0.7.1.RELEASE.jar"/>
+    	<pathelement location="lib/slf4j-api-1.7.2.jar"/>
+    	<pathelement location="lib/slf4j-jcl-1.7.2.jar"/>
+    	<pathelement location="lib/commons-cli-1.2.jar"/>
+    </path>
+	<property name="javadoc.excludes.packagenames" value="edu.uga.cs.fluxbuster.analytics.test,edu.uga.cs.fluxbuster.clustering.test,edu.uga.cs.fluxbuster.db.test,edu.uga.cs.fluxbuster.features.test,edu.uga.cs.fluxbuster.classification.test,edu.uga.cs.fluxbuster.utils.test"/>
+    <target name="init">
+        <mkdir dir="bin"/>
+    	<mkdir dir="doc"/>
+        <copy includeemptydirs="false" todir="bin">
+            <fileset dir="src">
+                <exclude name="**/*.java"/>
+            </fileset>
+        </copy>
+    </target>
+    <target name="clean">
+        <delete dir="bin"/>
+    </target>
+    <target name="clean-doc">
+        <delete dir="doc"/>
+    </target>
+    <target depends="clean,clean-doc" name="cleanall"/>
+    <target depends="build-subprojects,build-project" name="build"/>
+    <target name="build-subprojects"/>
+    <target depends="init" name="build-project">
+        <echo message="${ant.project.name}: ${ant.file}"/>
+        <javac debug="true" debuglevel="${debuglevel}" destdir="bin" source="${source}" target="${target}">
+            <src path="src"/>
+            <classpath refid="Fluxbuster.classpath"/>
+        </javac>
+    </target>
+    <target description="Build all projects which reference this project. Useful to propagate changes." name="build-refprojects"/>
+    <target description="copy Eclipse compiler jars to ant lib directory" name="init-eclipse-compiler">
+        <copy todir="${ant.library.dir}">
+            <fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
+        </copy>
+        <unzip dest="${ant.library.dir}">
+            <patternset includes="jdtCompilerAdapter.jar"/>
+            <fileset dir="${ECLIPSE_HOME}/plugins" includes="org.eclipse.jdt.core_*.jar"/>
+        </unzip>
+    </target>
+    <target description="compile project with Eclipse compiler" name="build-eclipse-compiler">
+        <property name="build.compiler" value="org.eclipse.jdt.core.JDTCompilerAdapter"/>
+        <antcall target="build"/>
+    </target>
+	<target name="doc" depends="init" description="generate documentation">
+		<javadoc sourcepath="src" destdir="doc" excludepackagenames="${javadoc.excludes.packagenames}">
+			<classpath refid="Fluxbuster.classpath"/>
+		</javadoc>
+	</target>
+</project>

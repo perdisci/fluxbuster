@@ -1,0 +1,8 @@
+edu.uga.cs.fluxbuster
+edu.uga.cs.fluxbuster.analytics
+edu.uga.cs.fluxbuster.classification
+edu.uga.cs.fluxbuster.clustering
+edu.uga.cs.fluxbuster.clustering.hierarchicalclustering
+edu.uga.cs.fluxbuster.db
+edu.uga.cs.fluxbuster.features
+edu.uga.cs.fluxbuster.utils
