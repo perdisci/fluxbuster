@@ -24,6 +24,7 @@ import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
@@ -33,6 +34,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 import java.util.Vector;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -42,7 +44,9 @@ import java.util.zip.GZIPInputStream;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.joda.time.DateTime;
 
+import edu.uga.cs.fluxbuster.classification.ClusterClass;
 import edu.uga.cs.fluxbuster.clustering.hierarchicalclustering.Dendrogram;
 import edu.uga.cs.fluxbuster.clustering.hierarchicalclustering.DistanceMatrix;
 import edu.uga.cs.fluxbuster.clustering.hierarchicalclustering.HCluster;
@@ -126,7 +130,7 @@ public class ClusterGenerator {
 		BufferedReader br = new BufferedReader(new FileReader(whitelistfile));
 		String line;
 		while ((line = br.readLine()) != null) {
-			domainWhitelist.add(line.trim());
+			domainWhitelist.add(DomainNameUtils.stripDots(line.trim()));
 		}
 		br.close();
 	}
@@ -289,8 +293,8 @@ public class ClusterGenerator {
 	 * Load candidate flux domains from the data files for the time period
 	 * between the start and end times.
 	 *
-	 * @param startTime the start time
-	 * @param endTime the end time
+	 * @param startTime the start time in sec.
+	 * @param endTime the end time in sec.
 	 * @param domainfile a file containing the list of domains that should
 	 * 		be clustered regardless of the candidate score.  If null the list
 	 * 		is ignored.
@@ -302,14 +306,14 @@ public class ClusterGenerator {
 			long endTime, String domainfile) throws Exception {
 		ArrayList<CandidateFluxDomain> retval = new ArrayList<CandidateFluxDomain>();
 		HashMap<String, CandidateFluxDomain> seenDomains = new HashMap<String, CandidateFluxDomain>();
-		List<String> recentFluxDomains = this.loadRecentFluxDomains();
+		Set<String> recentFluxDomains = loadRecentFluxDomains(startTime);
 		String dirPath = appprops.getProperty(FLUXDIRKEY);
 		double goodCandidateThreshold = Double.parseDouble(appprops
 				.getProperty(CANDIDATETHRESHKEY));
 		int maxCandidateDomains = Integer.parseInt(appprops
 				.getProperty(MAXDOMAINSKEY));
 
-		for (String filename : this.getFileNames(dirPath, startTime, endTime)) {
+		for (String filename : getFileNames(dirPath, startTime, endTime)) {
 			BufferedReader br = null;
 			try {
 				GZIPInputStream gis = new GZIPInputStream(new FileInputStream(
@@ -321,6 +325,9 @@ public class ClusterGenerator {
 							.parseFromLog(line);
 
 					if (isWhiteListable(cfd.getDomainName())) {
+						if(log.isDebugEnabled()){
+							log.debug(cfd.getDomainName() + " is whitelisted.");
+						}
 						continue;
 					}
 
@@ -343,90 +350,24 @@ public class ClusterGenerator {
 		}
 		
 		//add all domains from a file
-		if(domainfile != null){
-			BufferedReader br = new BufferedReader(new FileReader(new File(domainfile)));
-			String line = null;
-			while((line = br.readLine()) != null){
-				line = line.trim();
-				if (retval.size() == maxCandidateDomains) {
-					break;
-				}
-				CandidateFluxDomain d = seenDomains.get(line);
-				if(d != null){
-					if(log.isDebugEnabled()){
-						log.debug("Adding domain " + line + " from domains file.");
-					}
-					retval.add(d);
-					seenDomains.remove(line);
-				} else {
-					if(log.isDebugEnabled()){
-						log.debug("Unable to load domain " + line + " from domains file.");
-					}				
-				}
-			}
-			br.close();
+		if(domainfile != null){			
+			addDomainsFromFile(domainfile, maxCandidateDomains, retval, seenDomains);
 		}
 		
-		// add all domains from recently seen flux domains
 		ArrayList<String> allDomains = new ArrayList<String>();
 		allDomains.addAll(seenDomains.keySet());
 
-		ArrayList<String> removeDomains = new ArrayList<String>();
-		if (recentFluxDomains.size() > 0) {
-			Collections.shuffle(allDomains); // this is probably not necessary
-			for (String domainname : allDomains) {
-				if (retval.size() == maxCandidateDomains) {
-					break;
-				}
-				String temp = domainname;
-				if (temp.endsWith(".")) {
-					temp = temp.substring(0, temp.length() - 1);
-				}
-				String domainname2LD = DomainNameUtils.extractEffective2LD(temp);
-				if (recentFluxDomains.contains(domainname2LD)) {
-					retval.add(seenDomains.get(domainname));
-					removeDomains.add(domainname);
-				}
-			}
+		// add all domains from recently seen flux domains
+		if (retval.size() < maxCandidateDomains && recentFluxDomains.size() > 0) {
+			addRecentFluxDomains(recentFluxDomains, maxCandidateDomains, retval, 
+					seenDomains, allDomains);
 		}
-		allDomains.removeAll(removeDomains);
-		removeDomains.clear();
 
 		// then add the non-recent ones that meet the score threshold
 		if (retval.size() < maxCandidateDomains) {
-			ArrayList<CandidateFluxDomain> sortedDomains = new ArrayList<CandidateFluxDomain>();
-
-			// get all cfd's whose score is over the threshold
-			for (String domain : allDomains) {
-				CandidateFluxDomain temp = seenDomains.get(domain);
-				if (this.calcCandidateScore(temp) > goodCandidateThreshold) {
-					sortedDomains.add(temp);
-				}
-			}
-
-			// sort them in descending order by score
-			Collections.sort(sortedDomains,
-					new Comparator<CandidateFluxDomain>() {
-						@Override
-						public int compare(CandidateFluxDomain o1,
-								CandidateFluxDomain o2) {
-							Double o1score = calcCandidateScore(o1);
-							Double o2score = calcCandidateScore(o2);
-							return o2score.compareTo(o1score); // Descending
-																// order
-						}
-					});
-
-			for (CandidateFluxDomain cfd2 : sortedDomains) {
-				if (retval.size() == maxCandidateDomains) {
-					break;
-				}
-				retval.add(cfd2);
-				removeDomains.add(cfd2.getDomainName());
-			}
+			addThresholdMeetingDomains(maxCandidateDomains, goodCandidateThreshold, 
+					retval, seenDomains, allDomains);
 		}
-		allDomains.removeAll(removeDomains);
-		removeDomains.clear();
 
 		// then fill the rest randomly from what's left over
 		if (retval.size() < maxCandidateDomains) {
@@ -441,16 +382,152 @@ public class ClusterGenerator {
 
 		return retval;
 	}
-
-	// TODO stub implementation
+	
 	/**
-	 * Load recent flux domains.
-	 *
-	 * @return the list of recent flux domains
+	 * Copies candidate flux domains into a list if its candidate score is greater
+	 * than a threshold up to a limit on the size of the list.  The candidate flux 
+	 * domains are copied from a map of candidate flux domains.  Domains are only 
+	 * considered if they appear in the all domains list.   Once a candidate flux 
+	 * domain is copied it's corresponding domain name is removed from the all 
+	 * domains list.
+	 * 
+	 * @param maxCandidateDomains the limit on the total number of domains to add
+	 * @param goodCandidateThreshold the candidate score threshold
+	 * @param resultBuf the list in which to store the candidate flux domains
+	 * @param seenDomains the map of candidate flux domains.
+	 * @param allDomains this list of domains to consider
 	 */
-	private List<String> loadRecentFluxDomains() {
-		ArrayList<String> retval = new ArrayList<String>();
+	private void addThresholdMeetingDomains(int maxCandidateDomains, double goodCandidateThreshold,
+			List<CandidateFluxDomain> resultBuf, HashMap<String, CandidateFluxDomain> seenDomains, 
+			ArrayList<String> allDomains){
+		ArrayList<CandidateFluxDomain> sortedDomains = new ArrayList<CandidateFluxDomain>();
+		ArrayList<String> removeDomains = new ArrayList<String>();
+		// get all cfd's whose score is over the threshold
+		for (String domain : allDomains) {
+			CandidateFluxDomain temp = seenDomains.get(domain);
+			if (this.calcCandidateScore(temp) > goodCandidateThreshold) {
+				sortedDomains.add(temp);
+			}
+		}
 
+		// sort them in descending order by score
+		Collections.sort(sortedDomains,
+				new Comparator<CandidateFluxDomain>() {
+					@Override
+					public int compare(CandidateFluxDomain o1,
+							CandidateFluxDomain o2) {
+						Double o1score = calcCandidateScore(o1);
+						Double o2score = calcCandidateScore(o2);
+						return o2score.compareTo(o1score); // Descending
+															// order
+					}
+				});
+
+		for (CandidateFluxDomain cfd2 : sortedDomains) {
+			if (resultBuf.size() == maxCandidateDomains) {
+				break;
+			}
+			resultBuf.add(cfd2);
+			removeDomains.add(cfd2.getDomainName());
+		}
+		allDomains.removeAll(removeDomains);
+	}
+	
+	/**
+	 * Copies candidate flux domains into a list if its corresponding 2LD is present
+	 * in a list of recent flux domains up to a limit on the size of the list.  The 
+	 * candidate flux domains are copied from a map of candidate flux domains.  Domains 
+	 * are only considered if they appear in the all domains list.  Once a candidate flux 
+	 * domain is copied it's corresponding domain name is removed from the all domains list.
+	 * 
+	 * @param recentFluxDomains the list of recent flux 2LD's
+	 * @param maxCandidateDomains the limit on the total number of domains to add
+	 * @param resultBuf the list in which to store the candidate flux domains
+	 * @param seenDomains the map of candidate flux domains.
+	 * @param allDomains this list of domains to consider
+	 */
+	private void addRecentFluxDomains(Set<String> recentFluxDomains, int maxCandidateDomains, 
+			List<CandidateFluxDomain> resultBuf, HashMap<String, CandidateFluxDomain> seenDomains,
+			ArrayList<String> allDomains){
+		ArrayList<String> removeDomains = new ArrayList<String>();
+		Collections.shuffle(allDomains); // this is probably not necessary
+		for (String domainname : allDomains) {
+			if (resultBuf.size() == maxCandidateDomains) {
+				break;
+			}
+			String domainname2LD = DomainNameUtils.extractEffective2LD(domainname);
+			if (domainname2LD != null && recentFluxDomains.contains(domainname2LD)) {
+				resultBuf.add(seenDomains.get(domainname));
+				removeDomains.add(domainname);
+			}
+		}
+		allDomains.removeAll(removeDomains);
+	}
+	
+	/**
+	 * Copies candidate flux domains into a list if they appear in a domain file up
+	 * to a limit on the size of the list.  The candidate flux domains are copied 
+	 * from a map of candidate flux domains.  Once a candidate flux domain is copied
+	 * it is removed from the map.  
+	 * 
+	 * @param domainfile the file from which to read the domains
+	 * @param maxCandidateDomains the limit on the total number of domains to add
+	 * @param resultBuf the list in which to store the candidate flux domains
+	 * @param seenDomains the map of candidate flux domains.
+	 * @throws IOException
+	 */
+	private void addDomainsFromFile(String domainfile, int maxCandidateDomains,
+			List<CandidateFluxDomain> resultBuf, HashMap<String, CandidateFluxDomain> seenDomains) throws IOException{
+		BufferedReader br = new BufferedReader(new FileReader(new File(domainfile)));
+		String line = null;
+		while((line = br.readLine()) != null){
+			if (resultBuf.size() == maxCandidateDomains) {
+				break;
+			}
+			line = DomainNameUtils.stripDots(line.trim());
+			CandidateFluxDomain d = seenDomains.get(line);
+			if(d != null){
+				if(log.isDebugEnabled()){
+					log.debug("Adding domain " + line + " from domains file.");
+				}
+				resultBuf.add(d);
+				seenDomains.remove(line);
+			} else {
+				if(log.isDebugEnabled()){
+					log.debug("Unable to load domain " + line + " from domains file.");
+				}				
+			}
+		}
+		br.close();
+	}
+
+	/**
+	 * Load recent flux 2LD's.
+	 *
+	 * @param startTime unix epoch in sec.
+	 * @return the list of recent flux 2LD's
+	 */
+	private Set<String> loadRecentFluxDomains(long startTime) {
+		Set<String> retval = new HashSet<String>();
+		DBInterface iface = DBInterfaceFactory.loadDBInterface();
+		DateTime startDateTime = new DateTime(startTime * 1000);
+		for(int i = 1; i < 8; i++){
+			Date prevdate = new Date(startDateTime.minusDays(i).getMillis());
+			try{
+				for(StoredDomainCluster fluxCluster: iface.getClusters(prevdate, 
+						ClusterClass.FLUX)){
+					for(String domain : fluxCluster.getDomains()){
+						retval.add(DomainNameUtils.extractEffective2LD(domain));
+					}
+				}
+			} catch (Exception e) {
+				if(log.isErrorEnabled()){
+					SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
+					log.error("Uable to load previous flux domains for " + 
+							dateFormat.format(prevdate), e);
+				}
+			}
+		}
 		return retval;
 	}
 
@@ -648,7 +725,7 @@ public class ClusterGenerator {
 			log.info("Storing " + clusters.size() + " Clusters.");
 		}
 		dbiface.initClusterTables(log_date);
-		dbiface.storeBasicDnsFeatures(clusters, "SIE", log_date);
+		dbiface.storeClusters(clusters, "SIE", log_date);
 		if(log.isInfoEnabled()){
 			log.info("Clusters stored.");
 			log.info(this.getClass().getSimpleName() + " Finished: " 

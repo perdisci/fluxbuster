@@ -18,6 +18,9 @@
 
 package edu.uga.cs.fluxbuster.utils;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+
 import com.google.common.net.InternetDomainName;
 
 /**
@@ -27,18 +30,44 @@ import com.google.common.net.InternetDomainName;
  */
 public class DomainNameUtils {
 	
+	private static Log log = LogFactory.getLog(DomainNameUtils.class);
+	
 	/**
 	 * Extracts the effective second level domain name.
 	 *
 	 * @param domainname the full domain name
-	 * @return the second level domain name
+	 * @return the second level domain name or null on error
 	 */
 	public static String extractEffective2LD(String domainname) 
 	{
 		String retval = null;
-		InternetDomainName idn = InternetDomainName.from(domainname);
-		InternetDomainName sld = idn.topPrivateDomain();
-		retval = sld.name();
+		try{
+			InternetDomainName idn = InternetDomainName.from(domainname);
+			InternetDomainName sld = idn.topPrivateDomain();
+			retval = sld.name();
+		} catch (Exception e) {
+			if(log.isDebugEnabled()){
+				log.debug("Unable to extract 2LD.", e);
+			}
+		}
+		return retval;
+	}
+	
+	/**
+	 * Returns a copy of the domain name with leading and trailing
+	 * dots removed.
+	 * 
+	 * @param domainname the original domain name
+	 * @return the stripped of dots
+	 */
+	public static String stripDots(String domainname){
+		String retval = domainname;
+		if (retval.endsWith(".")) {
+			retval = retval.substring(0, retval.length() - 1);
+		}
+		if(retval.startsWith(".")){
+			retval = retval.substring(1, retval.length());
+		}
 		return retval;
 	}
 	

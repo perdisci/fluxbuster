@@ -29,6 +29,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import edu.uga.cs.fluxbuster.utils.DomainNameUtils;
+
 /**
  * This class represents a single domain to be used as the input
  * for clustering.
@@ -111,7 +113,7 @@ public class CandidateFluxDomain implements Serializable {
 
 		String[] elems = logline.split(" ");
 
-		String domainName = elems[0];
+		String domainName = DomainNameUtils.stripDots(elems[0].trim());
 		long numMessages = Long.parseLong(elems[1].trim());
 		long numQueries = Long.parseLong(elems[2].trim());
 		double avgTTL = Double.parseDouble(elems[3].trim());
@@ -527,7 +529,9 @@ public class CandidateFluxDomain implements Serializable {
 	}
 	
 	/**
-	 * @see java.lang.Object#toString()
+	 * Returns a string representing this CandidateFluxDomain.
+	 * 
+	 * @return a string representing this CandidateFluxDomain.
 	 */
 	@Override
 	public String toString(){

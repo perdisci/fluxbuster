@@ -263,7 +263,9 @@ public class HierarchicalClustering {
 	}
 
 	/**
-	 * @see java.lang.Object#toString()
+	 * Returns a string representing this HierarchicalClustering object.
+	 * 
+	 * @return a string representing this HierarchicalClustering object.
 	 */
 	@Override
 	public String toString() {

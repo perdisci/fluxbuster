@@ -458,7 +458,9 @@ public class DomainCluster implements Serializable {
 	}
 
 	/**
-	 * @see java.lang.Object#toString()
+	 * Returns a string representing this DomainCluster.
+	 * 
+	 * @return a string representing this DomainCluster.
 	 */
 	@Override
 	public String toString() {
@@ -473,41 +475,7 @@ public class DomainCluster implements Serializable {
 		}
 		ips.addAll(ipset);
 		Collections.sort(domains);
-		Collections.sort(ips, new Comparator<InetAddress>(){
-			@Override
-			public int compare(InetAddress o1, InetAddress o2) {
-				String addr1 = null, addr2 = null;
-				if(o1 instanceof Inet4Address){
-					addr1 = formatInetv4(o1);
-				} else {
-					addr1 = o1.getHostAddress();
-				}
-				
-				if(o2 instanceof Inet4Address){
-					addr2 = formatInetv4(o2);
-				} else {
-					addr2 = o2.getHostAddress();
-				}
-
-				return addr1.compareTo(addr2);
-			}
-			
-			
-			private String formatInetv4(InetAddress o1){
-				StringBuffer addr1str = new StringBuffer();
-				byte[] addr1 = o1.getAddress();
-				for(byte b : addr1){
-                    int val = 0;
-                    if(b < 0){
-                            val = 256 + b;
-                    } else {
-                            val = b;
-                    }
-                    addr1str.append(String.format("%03d" , val));
-				}
-				return addr1str.toString();
-			}
-		});
+		Collections.sort(ips, new InetAddressComparator());
 		
 		buf.append("Domains: \n");
 		for(String domain : domains){
