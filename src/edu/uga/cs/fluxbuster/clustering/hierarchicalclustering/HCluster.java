@@ -82,7 +82,9 @@ public class HCluster implements Serializable {
 	}
 
 	/**
-	 * @see java.lang.Object#toString()
+	 * Returns a string representing this HCluster.
+	 * 
+	 * @return a string representing this HCluster.
 	 */
 	@Override
 	public String toString() {

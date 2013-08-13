@@ -37,6 +37,7 @@ import weka.classifiers.trees.J48;
 import weka.core.Instances;
 import weka.core.converters.ConverterUtils.DataSource;
 
+import edu.uga.cs.fluxbuster.clustering.StoredDomainCluster;
 import edu.uga.cs.fluxbuster.db.DBInterface;
 import edu.uga.cs.fluxbuster.db.DBInterfaceFactory;
 import edu.uga.cs.fluxbuster.utils.PropertiesUtils;
@@ -93,7 +94,7 @@ public class Classifier {
 		if(localprops == null){
 			localprops = PropertiesUtils.loadProperties(this.getClass());
 		}
-		this.setModelPath(new File(localprops.getProperty(MODEL_PATHKEY))
+		setModelPath(new File(localprops.getProperty(MODEL_PATHKEY))
 			.getCanonicalPath());
 		this.dbi = dbi;
 	}
@@ -152,19 +153,19 @@ public class Classifier {
 					+ Calendar.getInstance().getTime());
 		}
 		dbi.initClassificationTables(logDate);
-		Map<String, List<Integer>> clusterClasses = 
-				this.classifyClusters(logDate, minCardinality);
+		Map<ClusterClass, List<StoredDomainCluster>> clusterClasses = 
+				classifyClusters(logDate, minCardinality);
 		if(log.isDebugEnabled()){
 			String retval = "";
-			for(String cls : clusterClasses.keySet()){
+			for(ClusterClass cls : clusterClasses.keySet()){
 				retval += "Cluster Class: " + cls + "\n";
-				for(int clusterid : clusterClasses.get(cls)){
-					retval += "\t" + clusterid + "\n";
+				for(StoredDomainCluster cluster : clusterClasses.get(cls)){
+					retval += "\t" + cluster.getClusterId() + "\n";
 				}
 			}
 			log.debug(retval);
 		}
-		this.storeClusterClasses(logDate, clusterClasses);
+		storeClusterClasses(logDate, clusterClasses);
 		if(log.isInfoEnabled()){
 			log.info(simplename + " Finished: " 
 					+ Calendar.getInstance().getTime());
@@ -181,60 +182,63 @@ public class Classifier {
 	 * 		and the values are lists of cluster id's belonging to those classes
 	 * @throws IOException
 	 */
-	public Map<String, List<Integer>> classifyClusters(Date logDate, 
+	public Map<ClusterClass, List<StoredDomainCluster>> classifyClusters(Date logDate, 
 			int minCardinality) throws IOException{
-		Map<String, List<Integer>> retval = null;
+		Map<ClusterClass, List<StoredDomainCluster>> retval = null;
 		if(log.isDebugEnabled()){
 			log.debug("Retrieving features from db.");
 		}
-		List<List<String>> features = dbi.getDnsFeatures(logDate, minCardinality);
+		List<StoredDomainCluster> clusters = dbi.getClusters(logDate, minCardinality);
+		
 		if(log.isDebugEnabled()){
 			log.debug("Features retrieved.");
 			log.debug("Preparing features file.");
 		}
-		String prepfeatures = this.prepareFeatures(features);
+		String prepfeatures = prepareFeatures(clusters);
 		if(log.isDebugEnabled()){
 			log.debug("File prepared.");
 			log.debug("Executing J48 classifier.");
 		}
-		retval = this.executeClassifier(prepfeatures, modelfile, features);
+		retval = executeClassifier(prepfeatures, modelfile, clusters);
 		if(log.isDebugEnabled()){
 			log.debug("J48 execution complete.");
 		}
 		return retval;
 	}
 	
+	
 	/**
 	 * Generates a String of the features in arff format
 	 * 
-	 * @param features the raw features
+	 * @param clusters the list of clusters from which to pull features
 	 * @return the arff format version of the features
 	 */
-	private String prepareFeatures(List<List<String>> features){
+	private String prepareFeatures(List<StoredDomainCluster> clusters){
 		StringBuffer buf = new StringBuffer();
 		buf.append(featuresHeader);
-		for(List<String> featurerow : features){
-			for(int i = 2; i < featurerow.size(); i++){
-				buf.append(Double.parseDouble(featurerow.get(i)) + ", ");
-			}
-			buf.append("NOT_Flux\n");
+		for(StoredDomainCluster cluster : clusters){
+			buf.append(cluster.getNetworkCardinality() + ", " + cluster.getIpDiversity() +
+					", " + cluster.getDomainsPerNetwork() + ", " + cluster.getNumberOfDomains() +
+					", " + cluster.getTtlPerDomain() + ", " + cluster.getIpGrowthRatio() +
+					", " + ClusterClass.NOT_FLUX + "\n");
 		}
-		return buf.toString();	
+		return buf.toString();
 	}
 	
-	
+		
 	/**
 	 * Executes the classifier.
 	 * 
 	 * @param prepfeatures the prepared features in arff format
 	 * @param modelfile the path to the serialized model
-	 * @param rawfeatures the raw features retrieved from the database
+	 * @param clusters the clusters to classify
 	 * @return a map of the classified clusters, the keys are the classes
 	 * 		and the values are lists of cluster id's belonging to those classes
 	 */
-	private Map<String, List<Integer>> executeClassifier(String prepfeatures, String modelfile, 
-			List<List<String>> rawfeatures){
-		Map<String, List<Integer>> retval = new HashMap<String, List<Integer>>();
+	private Map<ClusterClass, List<StoredDomainCluster>> executeClassifier(String prepfeatures, String modelfile, 
+			List<StoredDomainCluster> clusters){
+		Map<ClusterClass, List<StoredDomainCluster>> retval = 
+				new HashMap<ClusterClass, List<StoredDomainCluster>>();
 		try{
 			DataSource source = new DataSource(new ByteArrayInputStream(prepfeatures.getBytes()));
 			Instances data = source.getDataSet();
@@ -245,13 +249,13 @@ public class Classifier {
 			J48 cls = (J48)weka.core.SerializationHelper.read(modelfile);
 			cls.setOptions(options);
 			for(int i = 0; i < data.numInstances(); i++){
-				Integer clusterid = Integer.parseInt(rawfeatures.get(i).get(0));
 				double pred = cls.classifyInstance(data.instance(i));
-				String iclass = data.classAttribute().value((int)pred);
-				if(!retval.containsKey(iclass)){
-					retval.put(iclass, new ArrayList<Integer>());
+				ClusterClass clusClass = ClusterClass.valueOf(
+						data.classAttribute().value((int)pred).toUpperCase());
+				if(!retval.containsKey(clusClass)){
+					retval.put(clusClass, new ArrayList<StoredDomainCluster>());
 				}
-				retval.get(iclass).add(clusterid);
+				retval.get(clusClass).add(clusters.get(i));
 			}
 		} catch (Exception e) {
 			if(log.isErrorEnabled()){
@@ -260,6 +264,7 @@ public class Classifier {
 		}
 		return retval;
 	}
+
 	
 	/**
 	 * Store cluster classes in the database.
@@ -267,8 +272,8 @@ public class Classifier {
 	 * @param logDate the clustering run date
 	 * @param clusterClasses the map of classified clusters
 	 */
-	private void storeClusterClasses(Date logDate, Map<String, List<Integer>> clusterClasses){
-		dbi.storeDnsClusterClasses(logDate, clusterClasses, false);
+	private void storeClusterClasses(Date logDate, Map<ClusterClass, List<StoredDomainCluster>> clusterClasses){
+		dbi.storeClusterClasses(logDate, clusterClasses, false);
 	}
 
 }

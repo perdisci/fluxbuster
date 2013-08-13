@@ -28,7 +28,9 @@ import java.util.Map;
 import com.jolbox.bonecp.BoneCP;
 
 import edu.uga.cs.fluxbuster.analytics.ClusterSimilarity;
+import edu.uga.cs.fluxbuster.classification.ClusterClass;
 import edu.uga.cs.fluxbuster.clustering.DomainCluster;
+import edu.uga.cs.fluxbuster.clustering.StoredDomainCluster;
 
 /**
  * The base class for any database interface implementation.
@@ -69,27 +71,14 @@ public abstract class DBInterface {
 		return this.connectionPool.getConfig().getJdbcUrl();
 	}
 
-	
 	/**
-	 * Gets the list of dns features for each cluster generated during
-	 * a specific run date.
-	 * 
-	 * @param logdate ths run date
-	 * @param minCardinality a clusters minimum network cardinality
-	 * 		to be included in the result
-	 * @return a list a containing the features for each cluster with 
-	 * 		>= minimum network cardinality
-	 */
-	public abstract List<List<String>> getDnsFeatures(Date logdate, int minCardinality);
-
-	/**
-	 * Store basic dns features in the database.
+	 * Store domain clusters in the database.
 	 *
 	 * @param clusters the clusters to store
 	 * @param sensorname the sensorname
 	 * @param logdate the date for the run
 	 */
-	public abstract void storeBasicDnsFeatures(List<DomainCluster> clusters,
+	public abstract void storeClusters(List<DomainCluster> clusters,
 			String sensorname, Date logdate);
 	
 	
@@ -100,6 +89,66 @@ public abstract class DBInterface {
 	 * @return the list of cluster ids
 	 */
 	public abstract List<Integer> getClusterIds(Date logdate);
+	
+	
+	/**
+	 * Return the list of cluster ids for a run for clusters that have the 
+	 * supplied cluster classification.
+	 * 
+	 * @param logdate the date of the run
+	 * @param cls the cluster class
+	 * @return the list of cluster ids
+	 */
+	public abstract List<Integer> getClusterIds(Date logdate, ClusterClass cls);
+	
+	
+	/**
+	 * Return the list of cluster ids for a run for clusters that have at minimum
+	 * the network cardinality supplied.
+	 * 
+	 * @param logdate the date of the run
+	 * @param minCardinality the minimum network cardinality
+	 * @return the list of cluster ids
+	 */
+	public abstract List<Integer> getClusterIds(Date logdate, int minCardinality);
+	
+	/**
+	 * Return the list of clusters for a run.
+	 * 
+	 * @param logdate the date of the run
+	 * @return the list of clusters
+	 */
+	public abstract List<StoredDomainCluster> getClusters(Date logdate);
+	
+	
+	/**
+	 * Return the list of clusters for a run having the supplied cluster classification.
+	 * 
+	 * @param logdate the date of the run
+	 * @param cls the cluster class
+	 * @return the list of clusters
+	 */
+	public abstract List<StoredDomainCluster> getClusters(Date logdate, ClusterClass cls);
+	
+	/**
+	 * Return the list of clusters for a run having at minimum the supplied 
+	 * network cardinality.
+	 * 
+	 * @param logdate the date of the run
+	 * @param minCardinality the minimum network cardinality
+	 * @return the list of clusters
+	 */
+	public abstract List<StoredDomainCluster> getClusters(Date logdate, int minCardinality);
+	
+	
+	/**
+	 * Return the cluster with the supplied id from a run.
+	 * 
+	 * @param logdate the date of the run
+	 * @param clusterId the id of the cluster to retrieve
+	 * @return the stored cluster or null in case of an error
+	 */
+	public abstract StoredDomainCluster getCluster(Date logdate, int clusterId);
 	
 	
 	/**
@@ -118,13 +167,14 @@ public abstract class DBInterface {
 	public abstract void storeDomainnameClusterSimilarities(List<ClusterSimilarity> sims);
 	
 	/**
-	 * Stores the results of classification in the database. 
+	 * Stores the results of cluster classification in the database. 
 	 * 
+	 * @param logdate the date of the run
 	 * @param clusterClasses the cluster classes
 	 * @param validated if the classification has been manually validated
-	 */
-	public abstract void storeDnsClusterClasses(Date logdate, 
-			Map<String, List<Integer>> clusterClasses, 
+	 */	
+	public abstract void storeClusterClasses(Date logdate, 
+			Map<ClusterClass, List<StoredDomainCluster>> clusterClasses, 
 			boolean validated);
 	
 	/**

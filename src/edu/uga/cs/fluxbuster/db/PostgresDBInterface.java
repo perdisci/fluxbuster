@@ -21,6 +21,7 @@ package edu.uga.cs.fluxbuster.db;
 import java.io.Reader;
 import java.io.StringReader;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -29,14 +30,18 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Formatter;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.text.SimpleDateFormat;
 
 import edu.uga.cs.fluxbuster.analytics.ClusterSimilarity;
 import edu.uga.cs.fluxbuster.analytics.ClusterSimilarityCalculator;
+import edu.uga.cs.fluxbuster.classification.ClusterClass;
 import edu.uga.cs.fluxbuster.clustering.CandidateFluxDomain;
 import edu.uga.cs.fluxbuster.clustering.DomainCluster;
+import edu.uga.cs.fluxbuster.clustering.StoredDomainCluster;
 import edu.uga.cs.fluxbuster.utils.DomainNameUtils;
 
 import org.apache.commons.logging.Log;
@@ -55,6 +60,10 @@ import com.jolbox.bonecp.ConnectionHandle;
 public class PostgresDBInterface extends DBInterface {
 	
 	private static Log log = LogFactory.getLog(PostgresDBInterface.class);
+	
+	private SimpleDateFormat dateFormatTable = new SimpleDateFormat("yyyyMMdd");
+	private SimpleDateFormat dateFormatStr = new SimpleDateFormat("yyyy-MM-dd");
+	
 
 	/**
 	 * Instantiates a new postgres db interface.
@@ -71,11 +80,8 @@ public class PostgresDBInterface extends DBInterface {
 	 */
 	@Override
 	public void initSimilarityTables(Date logdate){
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
-		
-		dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-		String logDateStr = dateFormat.format(logdate);
+		String logDateTable = dateFormatTable.format(logdate);
+		String logDateStr = dateFormatStr.format(logdate);
 		
 		String clusterIpSimilCreateQuery = "CREATE TABLE cluster_ip_similarity_" + logDateTable
 				+ " (CONSTRAINT cluster_ip_similarity_" +logDateTable+"_log_date_check CHECK (log_date = '" + logDateStr + "'::date), "
@@ -114,11 +120,8 @@ public class PostgresDBInterface extends DBInterface {
 	 */
 	@Override
 	public void initClassificationTables(Date logdate){
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
-		
-		dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-		String logDateStr = dateFormat.format(logdate);
+		String logDateTable = dateFormatTable.format(logdate);
+		String logDateStr = dateFormatStr.format(logdate);
 		
 		String clusterClassesCreateQuery = "CREATE TABLE cluster_classes_" + logDateTable
 	            + " (CONSTRAINT cluster_classes_"+ logDateTable + "_log_date_check CHECK (log_date = '"+ logDateStr + "'::date), "
@@ -142,11 +145,8 @@ public class PostgresDBInterface extends DBInterface {
 	 */
 	@Override
 	public void initClusterTables(Date logdate){
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
-		
-		dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-		String logDateStr = dateFormat.format(logdate);
+		String logDateTable = dateFormatTable.format(logdate);
+		String logDateStr = dateFormatStr.format(logdate);
 		
         String domainsCreateQuery = "CREATE TABLE domains_"+logDateTable+" (PRIMARY KEY(domain_id), UNIQUE(domain_name), " +
     			"  CONSTRAINT domains_" + logDateTable + "_log_date_check CHECK (log_date = '" + logDateStr + "'::date)) " +
@@ -232,16 +232,200 @@ public class PostgresDBInterface extends DBInterface {
 		this.initClassificationTables(logdate);
 	}
 	
-
 	/**
-	 * @see edu.uga.cs.fluxbuster.db.DBInterface#storeBasicDnsFeatures(java.util.List, java.lang.String, java.util.Date)
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusters(java.util.Date)
 	 */
 	@Override
-	public void storeBasicDnsFeatures(List<DomainCluster> clusters,
+	public List<StoredDomainCluster> getClusters(Date logdate){
+		return this.getClusters(logdate, getClusterIds(logdate));
+	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusters(java.util.Date, edu.uga.cs.fluxbuster.classification.ClusterClass)
+	 */
+	public List<StoredDomainCluster> getClusters(Date logdate, ClusterClass cls){
+		return this.getClusters(logdate, getClusterIds(logdate, cls));
+	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusters(java.util.Date, int)
+	 */
+	public List<StoredDomainCluster> getClusters(Date logdate, int minCardinality){
+		return this.getClusters(logdate, getClusterIds(logdate, minCardinality));
+	}
+	
+	
+	/**
+	 * Get the domain clusters whose cluster id is within the supplied list.
+	 * 
+	 * @param logdate the run date of the cluster
+	 * @param clusterIds the list of cluster ids
+	 * @return this list of clusters
+	 */
+	private List<StoredDomainCluster> getClusters(Date logdate, List<Integer> clusterIds){
+		List<StoredDomainCluster> retval = new ArrayList<StoredDomainCluster>();
+		for(Integer clusterId : clusterIds){
+			StoredDomainCluster cluster = getCluster(logdate, clusterId);
+			if(cluster != null){
+				retval.add(cluster);
+			}
+		}
+		return retval;
+	}
+	
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getCluster(java.util.Date, int)
+	 */
+	@Override
+	public StoredDomainCluster getCluster(Date logdate, int clusterId){
+		try {
+			List<Double> features = getClusterFeatures(logdate, clusterId);
+			return new StoredDomainCluster(clusterId, logdate, getClusterDomains(logdate, clusterId),
+					getClusterIps(logdate, clusterId), getClusterClass(logdate, clusterId),
+					features.get(0), features.get(1), features.get(2), features.get(3),
+					features.get(4), features.get(5));
+		} catch (SQLException e) {
+			if(log.isErrorEnabled()){
+				log.error("Unable to load cluster with id " + clusterId, e);
+			}
+			return null;
+		}
+	}
+	
+	
+	/**
+	 * Get the features needed for cluster classification.
+	 * 
+	 * @param logdate the run date of the cluster
+	 * @param clusterId the cluster's id
+	 * @return the cluster features
+	 * @throws SQLException 
+	 */
+	private List<Double> getClusterFeatures(Date logdate, int clusterId) throws SQLException{
+		List<Double> retval = new ArrayList<Double>();
+		String tabDateStr = dateFormatTable.format(logdate);
+		String query = "SELECT network_cardinality, ip_diversity, domains_per_network, " +
+				"number_of_domains, ttl_per_domain, ip_growth_ratio FROM " +
+				"cluster_feature_vectors_" + tabDateStr + " WHERE cluster_id = " + 
+				clusterId;
+		ResultSet rs = this.executeQueryWithResult(query);
+		try {
+			if(rs.next()){
+				for(int i = 1; i <= 6; i++){
+					retval.add(rs.getDouble(i));
+				}
+			}
+		} catch (SQLException e) {
+			if(rs != null && !rs.isClosed()){
+				rs.close();
+			}
+			throw e;
+		} 
+		return retval;
+	}
+	
+	/**
+	 * Get a clusters classification.
+	 * 
+	 * @param logdate the run date of the cluster
+	 * @param clusterId the cluster's id
+	 * @return the clusters classification
+	 * @throws SQLException
+	 */
+	private ClusterClass getClusterClass(Date logdate, int clusterId) throws SQLException{
+		String logDateTable = dateFormatTable.format(logdate);
+		String query = "select class from cluster_classes_" + logDateTable + 
+				" where cluster_id = " + clusterId;
+		ResultSet rs = executeQueryWithResult(query);
+		try{
+			if(rs.next()){
+				return ClusterClass.valueOf(rs.getString(1).toUpperCase());
+			} else {
+				return ClusterClass.NONE;
+			}
+		} catch (SQLException e) {
+			if(rs != null && !rs.isClosed()){
+				rs.close();
+			}
+			throw e;
+		}
+	}
+	
+	/**
+	 * Get the IP addresses that belong to a cluster.
+	 * 
+	 * @param logdate the run date of the cluster
+	 * @param clusterId the cluster's id
+	 * @return the set of ip addresses belonging to the cluster
+	 * @throws SQLException
+	 */
+	private Set<InetAddress> getClusterIps(Date logdate, int clusterId) throws SQLException{
+		Set<InetAddress> retval = new HashSet<InetAddress>();
+		String logDateTable = dateFormatTable.format(logdate);
+		String query = "select distinct cluster_resolved_ips.resolved_ip from " +
+				"clusters_" + logDateTable + " as clusters, cluster_resolved_ips_" + 
+				logDateTable + " as cluster_resolved_ips where clusters.cluster_id = " + 
+				clusterId + " and clusters.cluster_id = cluster_resolved_ips.cluster_id";
+		ResultSet rs = executeQueryWithResult(query);
+		try {
+			while(rs.next()){
+				try {
+					retval.add(InetAddress.getByName(rs.getString(1)));
+				} catch (UnknownHostException e) {
+					if(log.isErrorEnabled()){
+						log.error("", e);
+					}
+				}
+			}
+		} catch (SQLException e) {
+			if(rs != null && !rs.isClosed()){
+				rs.close();
+			}
+			throw e;
+		}
+		return retval;
+	}
+	
+	/**
+	 * Get the domains that belong to a cluster.
+	 * 
+	 * @param logdate the run date of the cluster
+	 * @param clusterId the cluster's id
+	 * @return the set of domain names addresses belonging to the cluster
+	 * @throws SQLException
+	 */
+	private Set<String> getClusterDomains(Date logdate, int clusterId) throws SQLException{
+		Set<String> retval = new HashSet<String>();
+		String logDateTable = dateFormatTable.format(logdate);
+		String query = "select domains.domain_name from clusters_" + logDateTable + 
+				" as clusters, domains_" + logDateTable + " as domains where " +
+				"clusters.cluster_id = " + clusterId + " and clusters.domain_id = " +
+				"domains.domain_id";
+		ResultSet rs = executeQueryWithResult(query);
+		try {
+			while(rs.next()){
+				retval.add(DomainNameUtils.reverseDomainName(rs.getString(1)));
+			}
+		} catch (SQLException e) {
+			if(rs != null && !rs.isClosed()){
+				rs.close();
+			}
+			throw e;
+		}
+		return retval;
+	}
+	
+	
+
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#storeClusters(java.util.List, java.lang.String, java.util.Date)
+	 */
+	@Override
+	public void storeClusters(List<DomainCluster> clusters,
 			String sensorname, Date logdate) {
 		
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
+		String logDateTable = dateFormatTable.format(logdate);
 				
 		Connection con = null;
 		PreparedStatement domainsInsertStmt = null;
@@ -277,9 +461,13 @@ public class PostgresDBInterface extends DBInterface {
 	        	{
 	        		String domainName = filterChars(candidateDomain.getDomainName());
 	        		String domainNameRev = DomainNameUtils.reverseDomainName(domainName);
-	       		
-	        		String secondLevelDomainName = getDomainBase(domainName);
-	        		String secondLevelDomainNameRev = DomainNameUtils.reverseDomainName(secondLevelDomainName);
+	        		String secondLevelDomainName = DomainNameUtils.extractEffective2LD(domainName);
+	        		String secondLevelDomainNameRev = null;
+	        		if(secondLevelDomainName != null){
+	        			secondLevelDomainNameRev = DomainNameUtils.reverseDomainName(secondLevelDomainName);
+	        		} else {
+	        			secondLevelDomainNameRev = DomainNameUtils.reverseDomainName(domainName);
+	        		}
 	        		
 	        		domainsInsertStmt.setString(1, domainNameRev);
 	        		domainsInsertStmt.setDate(2, new java.sql.Date(logdate.getTime()));
@@ -456,28 +644,6 @@ public class PostgresDBInterface extends DBInterface {
 		throw new UnsupportedOperationException();
 	}
 	
-	/**
-	 * Gets the second level domain of the supplied domain name.
-	 *
-	 * @param domainNameOriginal the domain name
-	 * @return the base domain name
-	 */
-	public String getDomainBase(String domainNameOriginal)
-    {
-		String temp = domainNameOriginal;
-		if (temp.endsWith(".")) {
-			temp = temp.substring(0, temp.length() - 1);
-		}
-		if(temp.startsWith(".")){
-			temp = temp.substring(1, temp.length());
-		}
-		try{
-			String domainName2LD = DomainNameUtils.extractEffective2LD(temp);		
-			return domainName2LD;
-		} catch (Exception e){
-			return temp;
-		}
-    }
 	
 	/**
 	 * @see edu.uga.cs.fluxbuster.db.DBInterface#executeQueryWithResult(java.lang.String)
@@ -715,17 +881,25 @@ public class PostgresDBInterface extends DBInterface {
 			}
 		}
 	}
-
+	
 	/**
-	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusterIds(java.util.Date)
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusterIds(java.util.Date, edu.uga.cs.fluxbuster.classification.ClusterClass)
 	 */
 	@Override
-	public List<Integer> getClusterIds(Date logdate) {
-		ArrayList<Integer> retval = new ArrayList<Integer>();
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
-		String query = "select distinct cluster_id from clusters_" + logDateTable;
-		ResultSet rs = this.executeQueryWithResult(query);
+	public List<Integer> getClusterIds(Date logdate, ClusterClass cls) {
+		List<Integer> retval = new ArrayList<Integer>();
+		String logDateTable = dateFormatTable.format(logdate);
+		String query;
+		if(cls != ClusterClass.NONE){
+			query =  "select cluster_id from cluster_classes_" + logDateTable + 
+					" where class = '" + cls + "'";
+		} else {
+			query = "select distinct clusters.cluster_id from clusters_" + 
+					logDateTable + " as clusters left outer join cluster_classes_" + 
+					logDateTable + " as cluster_classes on clusters.cluster_id = " +
+					"cluster_classes.cluster_id where cluster_classes.class is NULL";
+		}
+		ResultSet rs = executeQueryWithResult(query);
 		try{
 			while(rs.next()){
 				retval.add(rs.getInt(1));
@@ -736,7 +910,9 @@ public class PostgresDBInterface extends DBInterface {
 			}
 		} finally {
 			try {
-				rs.close();
+				if(rs != null && !rs.isClosed()){
+					rs.close();
+				}
 			} catch (SQLException e) {
 				if(log.isErrorEnabled()){
 					log.error(e);
@@ -745,6 +921,69 @@ public class PostgresDBInterface extends DBInterface {
 		}
 		return retval;
 	}
+	
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusterIds(java.util.Date, int)
+	 */
+	@Override
+	public List<Integer> getClusterIds(Date logdate, int minCardinality) {
+		List<Integer> retval = new ArrayList<Integer>();
+		String tabDateStr = dateFormatTable.format(logdate);
+		String query = "SELECT cluster_id FROM cluster_feature_vectors_" + 
+				tabDateStr + " WHERE network_cardinality >= " + minCardinality;
+		ResultSet rs = executeQueryWithResult(query);
+		try{
+			while(rs.next()){
+				retval.add(rs.getInt(1));
+			}
+		} catch (Exception e) {
+			if(log.isErrorEnabled()){
+				log.error("Error retrieving cluster ids.", e);
+			}
+		} finally {
+			try {
+				if(rs != null && !rs.isClosed()){
+					rs.close();
+				}
+			} catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			}
+		}
+		return retval;
+	}
+
+	/**
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getClusterIds(java.util.Date)
+	 */
+	@Override
+	public List<Integer> getClusterIds(Date logdate) {
+		ArrayList<Integer> retval = new ArrayList<Integer>();
+		String logDateTable = dateFormatTable.format(logdate);
+		String query = "select distinct cluster_id from clusters_" + logDateTable;
+		ResultSet rs = executeQueryWithResult(query);
+		try{
+			while(rs.next()){
+				retval.add(rs.getInt(1));
+			}
+		} catch (Exception e) {
+			if(log.isErrorEnabled()){
+				log.error("Error retrieving cluster ids.", e);
+			}
+		} finally {
+			try {
+				if(rs != null && !rs.isClosed()){
+					rs.close();
+				}
+			} catch (SQLException e) {
+				if(log.isErrorEnabled()){
+					log.error(e);
+				}
+			}
+		}
+		return retval;
+	}	
 	
 	/**
 	 * @see edu.uga.cs.fluxbuster.db.DBInterface#storeIpClusterSimilarities(java.util.List)
@@ -770,8 +1009,6 @@ public class PostgresDBInterface extends DBInterface {
 	 */
 	private void storeClusterSimilarities(List<ClusterSimilarity> sims, ClusterSimilarityCalculator.SIM_TYPE type){
 		String format = "%d\t%d\t%f\t\'%s\'\t\'%s\'\n";
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd");
-		SimpleDateFormat dateStrFormat = new SimpleDateFormat("yyyyMMdd");
 		StringBuffer databuf = new StringBuffer();
 		Formatter formatter = new Formatter(databuf);
 		if(sims.size() > 0){
@@ -786,64 +1023,27 @@ public class PostgresDBInterface extends DBInterface {
 				break;
 			}
 			
-			String tabDateStr = dateStrFormat.format(sims.get(0).getADate());
+			String tabDateStr = dateFormatTable.format(sims.get(0).getADate());
 			String copyQuery = "COPY cluster_"+tabletype+"_similarity_" + tabDateStr + " (cluster_id, candidate_cluster_id, " +
 					"similarity, log_date, candidate_log_date ) FROM stdin;";
 		
 			for(ClusterSimilarity s : sims){
 				formatter.format(format, s.getAClusterId(), s.getBClusterId(), s.getSim(),
-						dateFormat.format(s.getADate()), dateFormat.format(s.getBDate()));
+						dateFormatStr.format(s.getADate()), dateFormatStr.format(s.getBDate()));
 			}
 			this.executeCopyIn(copyQuery, new StringReader(databuf.toString()));
 		}
 		formatter.close();
 	}
 
-	/**
-	 * @see edu.uga.cs.fluxbuster.db.DBInterface#getDnsFeatures(java.util.Date, int)
-	 */
-	@Override
-	public List<List<String>> getDnsFeatures(Date logdate, int minCardinality) {
-		List<List<String>> retval = new ArrayList<List<String>>();
-		SimpleDateFormat dateStrFormat = new SimpleDateFormat("yyyyMMdd");
-		String tabDateStr = dateStrFormat.format(logdate);
-		String query = "SELECT cluster_id, log_date, network_cardinality, ip_diversity, " +
-				"domains_per_network, number_of_domains, ttl_per_domain, ip_growth_ratio FROM " +
-				"cluster_feature_vectors_" + tabDateStr + " WHERE network_cardinality >= " + minCardinality;
-		ResultSet rs = this.executeQueryWithResult(query);
-		try {
-			while(rs.next()){
-				List<String> row = new ArrayList<String>();
-				for(int i = 1; i <= 8; i++){
-					row.add(rs.getString(i));
-				}
-				retval.add(row);
-			}
-		} catch (SQLException e) {
-			if(log.isErrorEnabled()){
-				log.error("Error retrieving dns features.", e);
-			}
-		} finally {
-			try {
-				rs.close();
-			} catch (SQLException e) {
-				if(log.isErrorEnabled()){
-					log.error(e);
-				}
-			}
-		}
-		return retval;
-	}
-
 	
 	/**
-	 * @see edu.uga.cs.fluxbuster.db.DBInterface#storeDnsClusterClasses(java.util.Date, java.util.Map, boolean)
+	 * @see edu.uga.cs.fluxbuster.db.DBInterface#storeClusterClasses(java.util.Date, java.util.Map, boolean)
 	 */
 	@Override
-	public void storeDnsClusterClasses(Date logdate, Map<String, List<Integer>> clusterClasses,
+	public void storeClusterClasses(Date logdate, Map<ClusterClass, List<StoredDomainCluster>> clusterClasses,
 			boolean validated) {
-		SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMdd");
-		String logDateTable = dateFormat.format(logdate);
+		String logDateTable = dateFormatTable.format(logdate);
 		
 		Connection con = null;
 		PreparedStatement clusterClassesInsertStmt = null;
@@ -851,11 +1051,11 @@ public class PostgresDBInterface extends DBInterface {
 			con = this.getConnection();
 			clusterClassesInsertStmt = con.prepareStatement(
 					"INSERT INTO cluster_classes_" + logDateTable + " VALUES (?, 'SIE', ?, ?, ?)");
-			for(String clusclass : clusterClasses.keySet()){
-				for(int clusterID : clusterClasses.get(clusclass)){
-					clusterClassesInsertStmt.setInt(1, clusterID);
+			for(ClusterClass clusclass : clusterClasses.keySet()){
+				for(StoredDomainCluster cluster : clusterClasses.get(clusclass)){
+					clusterClassesInsertStmt.setInt(1, cluster.getClusterId());
 					clusterClassesInsertStmt.setDate(2, new java.sql.Date(logdate.getTime()));
-					clusterClassesInsertStmt.setString(3, clusclass);
+					clusterClassesInsertStmt.setString(3, clusclass.toString());
 					clusterClassesInsertStmt.setBoolean(4, validated);
 					this.executePreparedStatementNoResult(con, clusterClassesInsertStmt);
 				}
