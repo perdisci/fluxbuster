@@ -85,7 +85,7 @@ requires the following configuration to execute.
     * datetime
     * sets
 
-NOTE: nmsg and wdns can be located at http://rsfcode.isc.org/
+NOTE: nmsg and wdns can be located at [https://dl.farsightsecurity.com/dist/ Farsight Security]
 
 Once python and the required modules have been installed the
 extract_candidate_flux_domains.py should be run as a daemon process. You
